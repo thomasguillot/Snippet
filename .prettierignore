@@ -1,0 +1,8 @@
+dist/
+node_modules/
+build/
+bin/
+*.min.js
+main.js
+preload.js
+package-lock.json

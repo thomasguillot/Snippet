@@ -22,11 +22,13 @@ A desktop app for macOS that grabs audio from the web: paste a URL, optionally t
 ## Installation
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. For development, run:
+
 ```bash
 npm run dev
 ```
@@ -46,14 +48,33 @@ The build step will automatically download the yt-dlp binary (via `prebuild` →
 
 This will create a `.dmg` file (e.g. in `dist/`) that you can install on your Mac. The packaged app is self-contained: no Node, FFmpeg, or yt-dlp installation required for end users.
 
+## Code quality
+
+Before building or committing, the project runs:
+
+- **ESLint** — TypeScript/JavaScript linting (rules in `eslint.config.mjs`)
+- **Prettier** — Formatting (tabs, quotes, etc. in `.prettierrc`)
+
+**Scripts:**
+
+- `npm run lint` — Run ESLint (fails on errors or warnings with `--max-warnings 0`)
+- `npm run lint:fix` — Run ESLint with auto-fix
+- `npm run format` — Format code with Prettier
+- `npm run format:check` — Check formatting without writing
+- `npm run check` — Run both lint and format check
+
+**Pre-commit:** [Husky](https://typicode.github.io/husky/) runs [lint-staged](https://github.com/okonet/lint-staged) on every `git commit`, so only staged files are linted and formatted. To skip hooks (e.g. WIP commits), use `git commit --no-verify`.
+
+**Build:** `npm run build` runs `npm run lint` first; the build fails if lint fails.
+
 ## Usage
 
 1. Launch the app (either via `npm run dev` for development or the built app)
 2. Enter a video or audio URL
 3. Optionally specify:
-   - A custom title for the output file
-   - Start and end times in HH:MM:SS format to trim the audio
-   - Playback speed (0.25x to 2x)
+    - A custom title for the output file
+    - Start and end times in HH:MM:SS format to trim the audio
+    - Playback speed (0.25x to 2x)
 4. Click "Download MP3"
 5. The file will be automatically downloaded when processing is complete
 

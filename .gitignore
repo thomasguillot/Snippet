@@ -6,3 +6,7 @@ bin/
 .DS_Store
 *.dmg
 *.zip
+
+# Compiled Electron main process (from main.ts / preload.ts)
+main.js
+preload.js
