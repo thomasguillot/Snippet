@@ -1,0 +1,52 @@
+{
+	"name": "snippet",
+	"version": "1.0.0",
+	"description": "Snippet — grab audio from the web. Desktop app to download and trim audio from URLs to MP3.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "concurrently \"npm run dev:vite\" \"wait-on http://localhost:5173 && electron .\"",
+		"dev:vite": "vite",
+		"download-yt-dlp": "node scripts/download-yt-dlp.js",
+		"prebuild": "npm run download-yt-dlp",
+		"build": "vite build",
+		"build:electron": "electron-builder",
+		"start": "electron .",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"ffmpeg-static": "^5.2.0",
+		"fluent-ffmpeg": "^2.1.2",
+		"framer-motion": "^11.0.0",
+		"yt-dlp-wrap": "^2.3.12"
+	},
+	"devDependencies": {
+		"@vitejs/plugin-react": "^4.2.1",
+		"concurrently": "^8.2.2",
+		"electron": "^28.0.0",
+		"electron-builder": "^24.9.1",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"vite": "^5.0.8",
+		"wait-on": "^7.2.0"
+	},
+	"build": {
+		"appId": "app.snippet",
+		"productName": "Snippet",
+		"mac": {
+			"category": "public.app-category.utilities",
+			"target": "dmg",
+			"icon": "build/app.icns"
+		},
+		"asarUnpack": [
+			"**/node_modules/ffmpeg-static/**",
+			"bin/**"
+		],
+		"files": [
+			"dist/**/*",
+			"main.js",
+			"preload.js",
+			"package.json",
+			"bin/**"
+		]
+	}
+}
