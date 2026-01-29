@@ -1,6 +1,6 @@
 {
 	"name": "snippet",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Snippet — grab audio from the web. Desktop app to download and trim audio from URLs to MP3.",
 	"main": "main.js",
 	"scripts": {

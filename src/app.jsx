@@ -17,6 +17,7 @@ function App() {
 	const [playbackSpeed, setPlaybackSpeed] = useState(1);
 	const [status, setStatus] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [isFetchingVideoInfo, setIsFetchingVideoInfo] = useState(false);
 	const [currentStep, setCurrentStep] = useState(1);
 	const [maxStepReached, setMaxStepReached] = useState(1);
 	const fetchInfoTimeoutRef = useRef(null);
@@ -160,9 +161,9 @@ function App() {
 		}
 
 		if (currentStep === 1) {
-			// Ensure we fetched info (and title) before moving to step 2
+			setIsFetchingVideoInfo(true);
+			setStatus('');
 			try {
-				// Cancel any pending debounced fetch and force a fresh one
 				if (fetchInfoTimeoutRef.current) {
 					clearTimeout(fetchInfoTimeoutRef.current);
 					fetchInfoTimeoutRef.current = null;
@@ -171,6 +172,10 @@ function App() {
 			} catch (error) {
 				console.error('Error fetching video info:', error);
 				setStatus('Could not fetch video info. Please check the URL.');
+				setIsFetchingVideoInfo(false);
+				return;
+			} finally {
+				setIsFetchingVideoInfo(false);
 			}
 		}
 
@@ -462,21 +467,34 @@ function App() {
 							</div>
 
 							<div className="footer-right">
-								<button
-									type="button"
-									onClick={handleReset}
-									className="btn btn--secondary"
-									disabled={isLoading}
-								>
-									Reset
-								</button>
+								{currentStep > 1 && (
+									<button
+										type="button"
+										onClick={handleReset}
+										className="btn btn--secondary"
+										disabled={isLoading}
+									>
+										Reset
+									</button>
+								)}
 								<button
 									type="button"
 									onClick={handleNext}
 									className="btn btn--primary"
-									disabled={isLoading || currentStep >= TOTAL_STEPS}
+									disabled={isLoading || (currentStep === 1 && isFetchingVideoInfo) || currentStep >= TOTAL_STEPS}
 								>
-									{currentStep < 4 ? 'Continue' : currentStep === 4 ? 'Download' : 'Continue'}
+									{currentStep === 1 && isFetchingVideoInfo ? (
+										<>
+											<span className="btn-spinner" aria-hidden="true" />
+											<span>Loading…</span>
+										</>
+									) : currentStep < 4 ? (
+										'Continue'
+									) : currentStep === 4 ? (
+										'Download'
+									) : (
+										'Continue'
+									)}
 								</button>
 							</div>
 						</div>

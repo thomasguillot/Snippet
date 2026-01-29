@@ -1,5 +1,7 @@
 # Snippet
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 A desktop app for macOS that grabs audio from the web: paste a URL, optionally trim and adjust speed, and save as MP3. No browser, no extra installs — everything is bundled.
 
 **Experimental.** This app was built exclusively using [Cursor](https://cursor.com).

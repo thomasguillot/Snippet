@@ -1,12 +1,151 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
+const { URL } = require('url');
 const YTDlpWrap = require('yt-dlp-wrap').default;
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
 
 let mainWindow;
 let tempDir; // Will be set after app is ready, in a writable location
+
+const MAX_URL_LENGTH = 2048;
+
+// Allowed origins for IPC (renderer must load from one of these)
+function getAllowedOrigins() {
+	const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+	const isDev = process.env.NODE_ENV === 'development' || !fs.existsSync(distIndexPath);
+	if (isDev) {
+		return ['http://localhost:5173', 'http://127.0.0.1:5173'];
+	}
+	return ['file://'];
+}
+
+function isAllowedSender(event) {
+	if (!mainWindow || event.sender !== mainWindow.webContents) {
+		return false;
+	}
+	const senderUrl = event.sender.getURL();
+	const allowed = getAllowedOrigins();
+	return allowed.some((origin) => {
+		if (origin === 'file://') {
+			return senderUrl.startsWith('file://');
+		}
+		return senderUrl.startsWith(origin);
+	});
+}
+
+// Check if hostname is loopback or private IP (handles dotted, decimal, IPv6)
+function isLoopbackOrPrivateIP(hostname) {
+	if (!hostname || typeof hostname !== 'string') {
+		return false;
+	}
+	const h = hostname.toLowerCase();
+
+	// IPv4 dotted: 127.0.0.1, 10.x, 172.16–31.x, 192.168.x, 0.0.0.0
+	if (net.isIP(h) === 4) {
+		const parts = h.split('.').map(Number);
+		if (parts.length !== 4 || parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
+			return false;
+		}
+		const [a, b, c, d] = parts;
+		if (a === 127) return true;
+		if (a === 10) return true;
+		if (a === 172 && b >= 16 && b <= 31) return true;
+		if (a === 192 && b === 168) return true;
+		if (a === 0 && b === 0 && c === 0 && d === 0) return true;
+		return false;
+	}
+
+	// IPv4 decimal form (e.g. 2130706433 = 127.0.0.1)
+	if (/^\d+$/.test(h)) {
+		const num = parseInt(h, 10);
+		if (num < 0 || num > 0xffffffff) return false;
+		const a = (num >> 24) & 0xff;
+		const b = (num >> 16) & 0xff;
+		const c = (num >> 8) & 0xff;
+		const d = num & 0xff;
+		if (a === 127) return true;
+		if (a === 10) return true;
+		if (a === 172 && b >= 16 && b <= 31) return true;
+		if (a === 192 && b === 168) return true;
+		if (a === 0 && b === 0 && c === 0 && d === 0) return true;
+		return false;
+	}
+
+	// IPv6 loopback and IPv4-mapped loopback
+	if (h === '::1' || h === '[::1]') return true;
+	if (h.startsWith('::ffff:127.') || h.startsWith('::ffff:0x7f')) return true;
+	if (h.startsWith('::ffff:7f')) return true; // ::ffff:7f00:1 = 127.0.0.1
+
+	return false;
+}
+
+// Validate URL to prevent SSRF: only http(s), no localhost/private IPs
+function validateUrl(input) {
+	if (!input || typeof input !== 'string') {
+		throw new Error('URL is required');
+	}
+	const trimmed = input.trim();
+	if (!trimmed) {
+		throw new Error('URL is required');
+	}
+	if (trimmed.length > MAX_URL_LENGTH) {
+		throw new Error('URL is too long');
+	}
+	let parsed;
+	try {
+		parsed = new URL(trimmed);
+	} catch {
+		throw new Error('Invalid URL');
+	}
+	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+		throw new Error('Only HTTP and HTTPS URLs are allowed');
+	}
+	const hostname = parsed.hostname;
+	const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'];
+	if (blockedHosts.includes(hostname.toLowerCase())) {
+		throw new Error('Localhost URLs are not allowed');
+	}
+	// Block private IPv4 ranges (string pattern) and all alternate IP forms
+	if (/^10\.|^172\.(1[6-9]|2\d|3[01])\.|^192\.168\./i.test(hostname)) {
+		throw new Error('Private network URLs are not allowed');
+	}
+	if (isLoopbackOrPrivateIP(hostname)) {
+		throw new Error('Localhost and private network URLs are not allowed');
+	}
+	return trimmed;
+}
+
+const MAX_DURATION_SECONDS = 604800; // 7 days — cap to avoid DoS or ffmpeg overflow
+
+// Validate numeric params for download (range and speed)
+function validateDownloadParams({ startTime, endTime, playbackSpeed }) {
+	const out = {};
+	if (startTime !== undefined && startTime !== null && startTime !== '') {
+		const s = Number(startTime);
+		if (Number.isNaN(s) || s < 0 || s > MAX_DURATION_SECONDS) {
+			throw new Error('Invalid start time');
+		}
+		out.startTime = s;
+	}
+	if (endTime !== undefined && endTime !== null && endTime !== '') {
+		const e = Number(endTime);
+		if (Number.isNaN(e) || e < 0 || e > MAX_DURATION_SECONDS) {
+			throw new Error('Invalid end time');
+		}
+		out.endTime = e;
+	}
+	if (playbackSpeed !== undefined && playbackSpeed !== null && playbackSpeed !== 1) {
+		const p = Number(playbackSpeed);
+		if (Number.isNaN(p) || p < 0.25 || p > 4) {
+			throw new Error('Playback speed must be between 0.25 and 4');
+		}
+		out.playbackSpeed = p;
+	}
+	return out;
+}
 
 // Configure ffmpeg to use bundled static binary if available
 if (ffmpegStatic) {
@@ -50,13 +189,21 @@ function getAtempoFilter(speed) {
 }
 
 function createWindow() {
+	const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+	const isDev =
+		process.env.NODE_ENV === 'development' ||
+		!fs.existsSync(distIndexPath);
+
 	mainWindow = new BrowserWindow({
 		width: 600,
 		height: 800,
 		webPreferences: {
 			preload: path.join(__dirname, 'preload.js'),
-			nodeIntegration: false,
 			contextIsolation: true,
+			nodeIntegration: false,
+			sandbox: true,
+			allowRunningInsecureContent: false,
+			devTools: isDev,
 		},
 		backgroundColor: '#0a0a0a',
 		titleBarStyle: 'hiddenInset',
@@ -66,18 +213,45 @@ function createWindow() {
 		},
 	});
 
-	// Load the app
-	const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-	const isDev =
-		process.env.NODE_ENV === 'development' ||
-		!fs.existsSync(distIndexPath);
+	// Block new windows (e.g. window.open, target="_blank")
+	if (typeof mainWindow.setWindowOpenHandler === 'function') {
+		mainWindow.setWindowOpenHandler(() => ({ action: 'deny' }));
+	} else {
+		mainWindow.webContents.on('new-window', (event) => event.preventDefault());
+	}
 
+	// Prevent navigation away from the app (e.g. window.location, links)
+	mainWindow.webContents.on('will-navigate', (event, url) => {
+		const allowed = getAllowedOrigins();
+		const allowedNav = allowed.some((origin) => {
+			if (origin === 'file://') {
+				return url.startsWith('file://');
+			}
+			return url.startsWith(origin);
+		});
+		if (!allowedNav) {
+			event.preventDefault();
+		}
+	});
+
+	mainWindow.webContents.on('will-redirect', (event, url) => {
+		const allowed = getAllowedOrigins();
+		const allowedNav = allowed.some((origin) => {
+			if (origin === 'file://') {
+				return url.startsWith('file://');
+			}
+			return url.startsWith(origin);
+		});
+		if (!allowedNav) {
+			event.preventDefault();
+		}
+	});
+
+	// Load the app
 	if (isDev) {
-		// In dev, load Vite dev server
 		mainWindow.loadURL('http://localhost:5173');
 		mainWindow.webContents.openDevTools();
 	} else {
-		// In production, load the built files
 		mainWindow.loadFile(distIndexPath);
 	}
 
@@ -144,6 +318,36 @@ app.on('window-all-closed', () => {
 
 app.whenReady().then(async () => {
 	try {
+		// Content Security Policy for production (file:// only; dev server keeps its own headers)
+		const csp = [
+			"default-src 'self'",
+			"script-src 'self'",
+			"style-src 'self' 'unsafe-inline'",
+			"img-src 'self' data:",
+			"connect-src 'self'",
+			"frame-ancestors 'none'",
+			"base-uri 'self'",
+			"form-action 'self'",
+		].join('; ');
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			if (!details.url.startsWith('file://')) {
+				callback({ responseHeaders: details.responseHeaders });
+				return;
+			}
+			const responseHeaders = { ...details.responseHeaders };
+			if (!responseHeaders['Content-Security-Policy']) {
+				responseHeaders['Content-Security-Policy'] = [csp];
+			}
+			// Additional security headers for file:// responses
+			responseHeaders['X-Content-Type-Options'] = ['nosniff'];
+			responseHeaders['X-Frame-Options'] = ['DENY'];
+			responseHeaders['Referrer-Policy'] = ['strict-origin-when-cross-origin'];
+			responseHeaders['Permissions-Policy'] = [
+				'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+			];
+			callback({ responseHeaders });
+		});
+
 		// Set up yt-dlp with bundled binary
 		const bundledYtDlpPath = getBundledYtDlpPath();
 		
@@ -210,12 +414,13 @@ app.whenReady().then(async () => {
 
 // IPC handlers
 ipcMain.handle('get-video-info', async (event, { url }) => {
-	if (!url) {
-		throw new Error('URL is required');
+	if (!isAllowedSender(event)) {
+		throw new Error('Unauthorized');
 	}
+	const validatedUrl = validateUrl(url);
 
 	try {
-		const videoInfo = await ytDlpWrap.getVideoInfo(url);
+		const videoInfo = await ytDlpWrap.getVideoInfo(validatedUrl);
 		return {
 			duration: videoInfo.duration || null,
 			title: videoInfo.title || null,
@@ -227,23 +432,31 @@ ipcMain.handle('get-video-info', async (event, { url }) => {
 });
 
 ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, playbackSpeed }) => {
-	if (!url) {
-		throw new Error('URL is required');
+	if (!isAllowedSender(event)) {
+		throw new Error('Unauthorized');
 	}
+	const validatedUrl = validateUrl(url);
+	let validatedParams;
+	try {
+		validatedParams = validateDownloadParams({ startTime, endTime, playbackSpeed });
+	} catch (err) {
+		throw err;
+	}
+	const { startTime: startTimeVal, endTime: endTimeVal, playbackSpeed: playbackSpeedVal } = validatedParams;
 
 	const timestamp = Date.now();
 	const tempVideoPath = path.join(tempDir, `video_${timestamp}.%(ext)s`);
 	const outputPath = path.join(tempDir, `output_${timestamp}.mp3`);
 
 	try {
-		// Use provided title or fetch from video metadata
+		// Use provided title or fetch from video metadata (only use title if string)
 		let videoTitle = 'output';
-		if (title && title.trim()) {
+		if (typeof title === 'string' && title.trim()) {
 			videoTitle = sanitizeFilename(title.trim());
 		} else {
-			console.log('Fetching video info from:', url);
+			console.log('Fetching video info from:', validatedUrl);
 			try {
-				const videoInfo = await ytDlpWrap.getVideoInfo(url);
+				const videoInfo = await ytDlpWrap.getVideoInfo(validatedUrl);
 				if (videoInfo && videoInfo.title) {
 					videoTitle = sanitizeFilename(videoInfo.title);
 				}
@@ -254,9 +467,9 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
 
 		// Download the video/audio
 		// Use android player client to avoid JS runtime requirement and reduce 403 errors
-		console.log('Downloading from:', url);
+		console.log('Downloading from:', validatedUrl);
 		await ytDlpWrap.execPromise([
-			url,
+			validatedUrl,
 			'--extractor-args', 'youtube:player_client=android',
 			'-f', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[height<=480]',
 			'-o', tempVideoPath,
@@ -283,20 +496,20 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
 				.format('mp3');
 
 			// Apply trimming if start or end time is provided
-			if (startTime !== undefined && startTime !== null && startTime !== '') {
-				command = command.seekInput(parseFloat(startTime));
+			if (startTimeVal !== undefined) {
+				command = command.seekInput(startTimeVal);
 			}
 
-			if (endTime !== undefined && endTime !== null && endTime !== '') {
-				const duration = parseFloat(endTime) - (parseFloat(startTime) || 0);
+			if (endTimeVal !== undefined) {
+				const duration = endTimeVal - (startTimeVal ?? 0);
 				if (duration > 0) {
 					command = command.duration(duration);
 				}
 			}
 
 			// Apply playback speed if provided and not 1x
-			if (playbackSpeed !== undefined && playbackSpeed !== null && playbackSpeed !== 1) {
-				const atempoFilter = getAtempoFilter(parseFloat(playbackSpeed));
+			if (playbackSpeedVal !== undefined && playbackSpeedVal !== 1) {
+				const atempoFilter = getAtempoFilter(playbackSpeedVal);
 				if (atempoFilter) {
 					command = command.audioFilters(atempoFilter);
 				}
