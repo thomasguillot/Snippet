@@ -2,13 +2,13 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A desktop app for macOS that grabs audio from the web: paste a URL, optionally trim and adjust speed, and save as MP3. No browser, no extra installs — everything is bundled.
+A desktop app for macOS that grabs audio from the web: paste a URL or upload an MP4 file, optionally trim and adjust speed, and save as MP3. No browser, no extra installs — everything is bundled.
 
 **Experimental.** This app was built exclusively using [Cursor](https://cursor.com).
 
 ## Features
 
-- Download audio/video from supported video and audio hosting sites
+- Download audio/video from supported video and audio hosting sites, or upload an MP4 file
 - Convert to MP3 format
 - Trim audio by specifying start and end times (in HH:MM:SS format)
 - Adjust playback speed (0.25x to 2x)
@@ -70,7 +70,7 @@ Before building or committing, the project runs:
 ## Usage
 
 1. Launch the app (either via `npm run dev` for development or the built app)
-2. Enter a video or audio URL
+2. Enter a video or audio URL, or upload an MP4 file
 3. Optionally specify:
     - A custom title for the output file
     - Start and end times in HH:MM:SS format to trim the audio

@@ -131,6 +131,56 @@ body {
 	margin-top: 0.25rem;
 }
 
+.source-tabs {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.source-tab {
+	background-color: var(--color-bg-input);
+	border: 1px solid var(--color-border);
+	border-radius: 0.5rem;
+	color: var(--color-text-muted);
+	cursor: pointer;
+	font-size: 0.85rem;
+	padding: 0.5rem 0.75rem;
+	transition:
+		border-color 0.15s,
+		color 0.15s;
+
+	&:hover {
+		border-color: var(--color-text-subtle);
+		color: var(--color-text);
+	}
+
+	&--active {
+		background-color: var(--color-bg-track);
+		border-color: var(--color-accent);
+		color: var(--color-text-heading);
+	}
+}
+
+.file-choose-btn {
+	width: 100%;
+}
+
+.file-input-hidden {
+	height: 0;
+	opacity: 0;
+	overflow: hidden;
+	position: absolute;
+	width: 0;
+}
+
+.file-zone {
+	width: 100%;
+
+	&--has-file .file-choose-btn {
+		border-color: var(--color-accent);
+		color: var(--color-accent-light);
+	}
+}
+
 .field-label {
 	display: block;
 	margin-bottom: 0.25rem;

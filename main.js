@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const net = require('net');
 const { URL } = require('url');
 const YTDlpWrap = require('yt-dlp-wrap').default;
@@ -144,12 +145,80 @@ function validateDownloadParams(params) {
     }
     return out;
 }
+let ffmpegPath = null;
 if (ffmpegStatic) {
-    let ffmpegPath = ffmpegStatic;
+    ffmpegPath = ffmpegStatic;
     if (app.isPackaged && typeof ffmpegPath === 'string' && ffmpegPath.includes('app.asar')) {
         ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
     }
     ffmpeg.setFfmpegPath(ffmpegPath);
+}
+const ALLOWED_SOURCE_EXT = ['.mp3', '.mp4'];
+function getAllowedBasePaths() {
+    const home = app.getPath('home');
+    const dirs = [path.resolve(home)];
+    if (tempDir && fs.existsSync(tempDir)) {
+        dirs.push(path.resolve(tempDir));
+    }
+    // Allow mounted volumes (e.g. external drives on macOS)
+    if (process.platform === 'darwin') {
+        dirs.push(path.resolve('/Volumes'));
+    }
+    return dirs;
+}
+function isPathUnderAllowedBases(filePath) {
+    const resolved = path.resolve(filePath);
+    const bases = getAllowedBasePaths();
+    return bases.some((base) => resolved === base || resolved.startsWith(base + path.sep));
+}
+function validateLocalFilePath(input) {
+    if (!input || typeof input !== 'string') {
+        throw new Error('File path is required');
+    }
+    const normalized = path.normalize(input.trim());
+    if (!normalized) {
+        throw new Error('File path is required');
+    }
+    const ext = path.extname(normalized).toLowerCase();
+    if (!ALLOWED_SOURCE_EXT.includes(ext)) {
+        throw new Error('Only MP3 and MP4 files are allowed');
+    }
+    if (!isPathUnderAllowedBases(normalized)) {
+        throw new Error('File path is not in an allowed directory');
+    }
+    try {
+        const stat = fs.statSync(normalized);
+        if (!stat.isFile()) {
+            throw new Error('Path is not a file');
+        }
+    }
+    catch (err) {
+        if (err.code === 'ENOENT') {
+            throw new Error('File not found');
+        }
+        throw err;
+    }
+    return path.resolve(normalized);
+}
+function getLocalFileDuration(filePath) {
+    return new Promise((resolve) => {
+        if (!ffmpegPath) {
+            resolve(null);
+            return;
+        }
+        function parseStderr(stderr) {
+            const match = /Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/.exec(stderr);
+            if (match) {
+                const [, h, m, s, cs] = match.map(Number);
+                return h * 3600 + m * 60 + s + cs / 100;
+            }
+            return null;
+        }
+        execFile(ffmpegPath, ['-i', filePath], { maxBuffer: 2 * 1024 * 1024, timeout: 10000 }, (err, _stdout, stderr) => {
+            const duration = stderr ? parseStderr(stderr) : null;
+            resolve(duration ?? null);
+        });
+    });
 }
 function sanitizeFilename(title) {
     if (!title || typeof title !== 'string') {
@@ -178,8 +247,7 @@ function getAtempoFilter(speed) {
 }
 function createWindow() {
     const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-    const isDev = process.env.NODE_ENV === 'development' ||
-        !fs.existsSync(distIndexPath);
+    const isDev = process.env.NODE_ENV === 'development' || !fs.existsSync(distIndexPath);
     const win = new BrowserWindow({
         width: 600,
         height: 800,
@@ -199,7 +267,8 @@ function createWindow() {
         },
     });
     mainWindow = win;
-    if (typeof win.setWindowOpenHandler === 'function') {
+    if (typeof win
+        .setWindowOpenHandler === 'function') {
         win.setWindowOpenHandler(() => ({ action: 'deny' }));
     }
     else {
@@ -378,52 +447,99 @@ ipcMain.handle('get-video-info', async (event, { url }) => {
         throw new Error('Failed to fetch video info');
     }
 });
-ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, playbackSpeed }) => {
+ipcMain.handle('open-file-dialog', async (event) => {
     if (!isAllowedSender(event)) {
         throw new Error('Unauthorized');
     }
-    const validatedUrl = validateUrl(url);
+    const win = event.sender.getOwnerBrowserWindow?.() ?? mainWindow;
+    if (!win || win.isDestroyed()) {
+        throw new Error('Window not available');
+    }
+    const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Audio & Video', extensions: ['mp3', 'mp4'] },
+            { name: 'All Files', extensions: ['*'] },
+        ],
+    });
+    if (result.canceled || !result.filePaths.length) {
+        return { path: null };
+    }
+    const filePath = result.filePaths[0];
+    const ext = path.extname(filePath).toLowerCase();
+    if (!ALLOWED_SOURCE_EXT.includes(ext)) {
+        throw new Error('Only MP3 and MP4 files are allowed');
+    }
+    return { path: filePath };
+});
+ipcMain.handle('get-local-file-info', async (event, { filePath }) => {
+    if (!isAllowedSender(event)) {
+        throw new Error('Unauthorized');
+    }
+    const validatedPath = validateLocalFilePath(filePath);
+    const duration = await getLocalFileDuration(validatedPath);
+    const title = path.basename(validatedPath, path.extname(validatedPath)) || 'audio';
+    return { duration, title };
+});
+ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, startTime, endTime, playbackSpeed, }) => {
+    if (!isAllowedSender(event)) {
+        throw new Error('Unauthorized');
+    }
+    const isLocalFile = typeof sourceFilePath === 'string' && sourceFilePath.trim().length > 0;
     const validatedParams = validateDownloadParams({ startTime, endTime, playbackSpeed });
     const { startTime: startTimeVal, endTime: endTimeVal, playbackSpeed: playbackSpeedVal } = validatedParams;
     const timestamp = Date.now();
-    const tempVideoPath = path.join(tempDir, `video_${timestamp}.%(ext)s`);
     const outputPath = path.join(tempDir, `output_${timestamp}.mp3`);
+    let downloadedFilePath;
     try {
         let videoTitle = 'output';
-        if (typeof title === 'string' && title.trim()) {
-            videoTitle = sanitizeFilename(title.trim());
+        if (isLocalFile) {
+            downloadedFilePath = validateLocalFilePath(sourceFilePath);
+            if (typeof title === 'string' && title.trim()) {
+                videoTitle = sanitizeFilename(title.trim());
+            }
+            else {
+                videoTitle = sanitizeFilename(path.basename(downloadedFilePath, path.extname(downloadedFilePath))) || 'audio';
+            }
         }
         else {
-            console.log('Fetching video info from:', validatedUrl);
-            try {
-                const videoInfo = await ytDlpWrap.getVideoInfo(validatedUrl);
-                if (videoInfo && videoInfo.title) {
-                    videoTitle = sanitizeFilename(videoInfo.title);
+            const validatedUrl = validateUrl(url);
+            if (typeof title === 'string' && title.trim()) {
+                videoTitle = sanitizeFilename(title.trim());
+            }
+            else {
+                console.log('Fetching video info from:', validatedUrl);
+                try {
+                    const videoInfo = await ytDlpWrap.getVideoInfo(validatedUrl);
+                    if (videoInfo && videoInfo.title) {
+                        videoTitle = sanitizeFilename(videoInfo.title);
+                    }
+                }
+                catch (infoError) {
+                    console.warn('Could not fetch video title, using default:', infoError.message);
                 }
             }
-            catch (infoError) {
-                console.warn('Could not fetch video title, using default:', infoError.message);
+            const tempVideoPath = path.join(tempDir, `video_${timestamp}.%(ext)s`);
+            console.log('Downloading from:', validatedUrl);
+            await ytDlpWrap.execPromise([
+                validatedUrl,
+                '--extractor-args',
+                'youtube:player_client=android',
+                '-f',
+                'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[height<=480]',
+                '-o',
+                tempVideoPath,
+            ]);
+            const files = fs.readdirSync(tempDir);
+            const downloadedFile = files.find((f) => {
+                const baseName = f.replace(/\.[^/.]+$/, '');
+                return baseName === `video_${timestamp}` || f.startsWith(`video_${timestamp}`);
+            });
+            if (!downloadedFile) {
+                throw new Error('Downloaded file not found');
             }
+            downloadedFilePath = path.join(tempDir, downloadedFile);
         }
-        console.log('Downloading from:', validatedUrl);
-        await ytDlpWrap.execPromise([
-            validatedUrl,
-            '--extractor-args',
-            'youtube:player_client=android',
-            '-f',
-            'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[height<=480]',
-            '-o',
-            tempVideoPath,
-        ]);
-        const files = fs.readdirSync(tempDir);
-        const downloadedFile = files.find((f) => {
-            const baseName = f.replace(/\.[^/.]+$/, '');
-            return baseName === `video_${timestamp}` || f.startsWith(`video_${timestamp}`);
-        });
-        if (!downloadedFile) {
-            throw new Error('Downloaded file not found');
-        }
-        const downloadedFilePath = path.join(tempDir, downloadedFile);
         return new Promise((resolve, reject) => {
             let command = ffmpeg(downloadedFilePath).audioCodec('libmp3lame').audioBitrate(192).format('mp3');
             if (startTimeVal !== undefined) {
@@ -445,6 +561,11 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
                 .on('end', () => {
                 const outputFiles = fs.readdirSync(tempDir);
                 const finalOutput = outputFiles.find((f) => f.startsWith(`output_${timestamp}`));
+                const cleanupTempInput = () => {
+                    if (!isLocalFile && fs.existsSync(downloadedFilePath)) {
+                        fs.unlinkSync(downloadedFilePath);
+                    }
+                };
                 if (!finalOutput) {
                     const mp3Files = outputFiles
                         .filter((f) => f.endsWith('.mp3'))
@@ -457,17 +578,16 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
                         const finalFile = path.join(tempDir, mp3Files[0].name);
                         const filename = `${videoTitle}.mp3`;
                         const fileBuffer = fs.readFileSync(finalFile);
-                        [downloadedFilePath, finalFile].forEach((file) => {
-                            if (fs.existsSync(file)) {
-                                fs.unlinkSync(file);
-                            }
-                        });
+                        cleanupTempInput();
+                        if (fs.existsSync(finalFile))
+                            fs.unlinkSync(finalFile);
                         resolve({
                             buffer: fileBuffer,
                             filename: filename,
                         });
                     }
                     else {
+                        cleanupTempInput();
                         reject(new Error('Output file not found'));
                     }
                 }
@@ -475,11 +595,9 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
                     const finalFile = path.join(tempDir, finalOutput);
                     const filename = `${videoTitle}.mp3`;
                     const fileBuffer = fs.readFileSync(finalFile);
-                    [downloadedFilePath, finalFile].forEach((file) => {
-                        if (fs.existsSync(file)) {
-                            fs.unlinkSync(file);
-                        }
-                    });
+                    cleanupTempInput();
+                    if (fs.existsSync(finalFile))
+                        fs.unlinkSync(finalFile);
                     resolve({
                         buffer: fileBuffer,
                         filename: filename,
@@ -487,7 +605,7 @@ ipcMain.handle('download-mp3', async (event, { url, title, startTime, endTime, p
                 }
             })
                 .on('error', (err) => {
-                if (fs.existsSync(downloadedFilePath)) {
+                if (!isLocalFile && fs.existsSync(downloadedFilePath)) {
                     fs.unlinkSync(downloadedFilePath);
                 }
                 reject(err);

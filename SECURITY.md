@@ -4,7 +4,7 @@ This document describes the security model of Snippet and how to report vulnerab
 
 ## Overview
 
-Snippet is an Electron desktop app that downloads and converts audio from web URLs to MP3. Security is implemented in layers: the renderer process is isolated and sandboxed, all communication with the main process is validated, and user input (especially URLs) is restricted to prevent abuse.
+Snippet is an Electron desktop app that downloads and converts audio from web URLs to MP3, or converts uploaded local MP3/MP4 files. Security is implemented in layers: the renderer process is isolated and sandboxed, all communication with the main process is validated, and user input (URLs and file paths) is restricted to prevent abuse.
 
 ## Security measures
 
@@ -19,19 +19,23 @@ Snippet is an Electron desktop app that downloads and converts audio from web UR
 
 ### Preload script
 
-- **Minimal API** — Only `getVideoInfo(url)` and `downloadMP3(params)` are exposed via `contextBridge`.
-- **Type checks** — The preload ensures `url` is a string and `params` is a plain object before forwarding to the main process.
-- **Structured params** — For `downloadMP3`, only `url`, `title`, `startTime`, `endTime`, and `playbackSpeed` are passed through; other keys are dropped.
+- **Minimal API** — Only `getVideoInfo(url)`, `openFileDialog()`, `getLocalFileInfo(filePath)`, and `downloadMP3(params)` are exposed via `contextBridge`.
+- **Type checks** — The preload ensures `url` and `filePath` are strings and `params` is a plain object before forwarding to the main process.
+- **Structured params** — For `downloadMP3`, only `url`, `sourceFilePath`, `title`, `startTime`, `endTime`, and `playbackSpeed` are passed through; other keys are dropped.
 
 ### Main process
 
 - **IPC origin checks** — Every IPC handler verifies the sender with `isAllowedSender(event)`: the call must come from the app’s main window and from an allowed origin (in production: `file://`; in dev: `http://localhost:5173` or `http://127.0.0.1:5173`). Other origins receive “Unauthorized”.
 - **URL validation (SSRF mitigation)** — All URLs passed to yt-dlp are validated:
-  - Only `http:` and `https:` protocols.
-  - Localhost and loopback are blocked (`localhost`, `127.0.0.1`, `0.0.0.0`, `::1`).
-  - Private IP ranges are blocked (e.g. `10.x`, `172.16–31.x`, `192.168.x`).
-  - Alternate IP forms are blocked: decimal IPv4 (e.g. `2130706433` = 127.0.0.1), IPv6 loopback (`::1`), and IPv4-mapped loopback (`::ffff:127.0.0.1`).
-  - Maximum length: 2048 characters.
+    - Only `http:` and `https:` protocols.
+    - Localhost and loopback are blocked (`localhost`, `127.0.0.1`, `0.0.0.0`, `::1`).
+    - Private IP ranges are blocked (e.g. `10.x`, `172.16–31.x`, `192.168.x`).
+    - Alternate IP forms are blocked: decimal IPv4 (e.g. `2130706433` = 127.0.0.1), IPv6 loopback (`::1`), and IPv4-mapped loopback (`::ffff:127.0.0.1`).
+    - Maximum length: 2048 characters.
+- **Local file path validation** — Paths passed for upload (e.g. from the file picker) are validated:
+    - Path must be a non-empty string; extension must be `.mp3` or `.mp4`.
+    - Path must resolve to an existing file (not a directory).
+    - Path must be under an allowed base: the user’s home directory, the app temp directory, or (on macOS) under `/Volumes` for mounted drives. Paths outside these bases are rejected to prevent reading arbitrary system or other users’ files.
 - **Download parameter validation** — `startTime` and `endTime` must be non-negative numbers and capped at 7 days (604 800 seconds) to avoid DoS or overflow; `playbackSpeed` must be between 0.25 and 4.
 - **Title handling** — Only string values are used for the download filename; non-strings are ignored to avoid main-process crashes.
 - **Filename sanitization** — User-provided titles are sanitized (invalid characters removed, length capped) before being used as file names.
@@ -52,9 +56,9 @@ If you believe you’ve found a security issue in Snippet:
 
 1. **Do not** open a public GitHub issue for it.
 2. Send a private report to the maintainers (e.g. via email or a private security advisory if the project is on GitHub). Include:
-   - A clear description of the issue and how to reproduce it.
-   - The impact you think it has (e.g. what an attacker could do).
-   - Any suggested fix or reference, if you have one.
+    - A clear description of the issue and how to reproduce it.
+    - The impact you think it has (e.g. what an attacker could do).
+    - Any suggested fix or reference, if you have one.
 3. Allow a reasonable time for a fix before disclosing publicly (e.g. 90 days), unless already disclosed.
 
 We will acknowledge receipt and work on a fix. We may ask for more details and will keep you updated when possible.

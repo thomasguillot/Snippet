@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+- **Step 1 · Source:** Option to enter a URL (existing) or upload an MP3 or MP4 file. In Electron, the file picker uses the system dialog; in the browser (localhost), a native file input is used.
+- **Local file flow:** Uploaded files get duration and title from the file; trim and playback speed work the same. Conversion and download require the desktop app (Electron); in the browser, a message explains this. If duration can’t be read in the browser, step 3 shows a message and “Continue without trimming”; both video and audio elements are tried for duration.
+- **Security:** Local file paths are restricted to allowed bases (user home, app temp, and on macOS `/Volumes` for mounted drives) so the renderer cannot request arbitrary files. SECURITY.md updated to document the new IPC APIs and local file path validation.
+- **Step 2 · Title:** Focus is preserved in the title input while typing (no caret jump on re-render).
+- **Step 3 · Trim:** Start must be before end and end after start; invalid times revert with a status message. Range sliders update the DOM during drag (no re-render) and only sync state on release, so knobs stay draggable; knobs cannot move past each other (value resets when crossing). Caret position is preserved in the start/end time inputs while typing.
+- **Messaging:** Step 5 shows “Converting…” for uploaded files and “Downloading and converting…” for URLs; step 4 button shows “Convert” for file and “Download” for URL; step 6 button is “Start over” for both.
+- **Docs:** Description and README updated to mention upload (MP4).
+
 ## 2.0.0
 
 - **TypeScript:** Full migration from React/JSX to TypeScript. Renderer is vanilla TypeScript (no React); Electron main process and preload are written in TypeScript and compiled to JS for runtime.

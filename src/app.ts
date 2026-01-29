@@ -1,8 +1,13 @@
 const TOTAL_STEPS = 6;
 const DISPLAY_STEPS = 4;
 
+type SourceType = 'url' | 'file';
+
 interface State {
+	sourceType: SourceType;
 	url: string;
+	sourceFilePath: string;
+	sourceFile: File | null;
 	title: string;
 	titleTouched: boolean;
 	durationSeconds: number | null;
@@ -19,7 +24,10 @@ interface State {
 }
 
 let state: State = {
+	sourceType: 'url',
 	url: '',
+	sourceFilePath: '',
+	sourceFile: null,
 	title: '',
 	titleTouched: false,
 	durationSeconds: null,
@@ -36,6 +44,58 @@ let state: State = {
 };
 
 let fetchInfoTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+function tryMediaDuration(url: string, useVideo: boolean): Promise<number | null> {
+	return new Promise((resolve) => {
+		const media = useVideo ? document.createElement('video') : document.createElement('audio');
+		media.preload = 'metadata';
+		media.style.position = 'absolute';
+		media.style.left = '-9999px';
+		media.style.visibility = 'hidden';
+
+		let settled = false;
+		const done = (duration: number | null) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeoutId);
+			media.remove();
+			resolve(duration);
+		};
+
+		const timeoutId = setTimeout(() => done(null), 10000);
+
+		media.addEventListener('loadedmetadata', () => {
+			const d = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : null;
+			done(d);
+		});
+		media.addEventListener('error', () => done(null));
+		media.addEventListener('durationchange', () => {
+			if (Number.isFinite(media.duration) && media.duration > 0) {
+				done(media.duration);
+			}
+		});
+
+		document.body.appendChild(media);
+		media.src = url;
+	});
+}
+
+async function getLocalFileInfoFromFile(file: File): Promise<{ duration: number | null; title: string }> {
+	const url = URL.createObjectURL(file);
+	const title = file.name.replace(/\.[^.]+$/, '') || 'audio';
+	try {
+		const isVideo = file.type.startsWith('video/') || /\.mp4$/i.test(file.name);
+		let duration = await tryMediaDuration(url, isVideo);
+		if (duration == null && isVideo) {
+			duration = await tryMediaDuration(url, false);
+		} else if (duration == null && !isVideo) {
+			duration = await tryMediaDuration(url, true);
+		}
+		return { duration, title };
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
 
 function timeToSeconds(timeStr: string | undefined): number | null {
 	if (!timeStr || typeof timeStr !== 'string') return null;
@@ -109,6 +169,14 @@ function handleUrlChange(e: Event): void {
 
 async function runDownload(): Promise<void> {
 	setState({ status: '', isLoading: true, currentStep: 5 });
+	if (state.sourceType === 'file' && state.sourceFile != null) {
+		setState({
+			status: 'Conversion and download are only available in the desktop app. Run: npm run dev',
+			isLoading: false,
+			currentStep: 4,
+		});
+		return;
+	}
 	const api = window.electronAPI;
 	if (!api?.downloadMP3) {
 		setState({ status: 'Error: App not ready', isLoading: false, currentStep: 4 });
@@ -117,7 +185,7 @@ async function runDownload(): Promise<void> {
 
 	try {
 		const result = await api.downloadMP3({
-			url: state.url.trim(),
+			...(state.sourceType === 'url' ? { url: state.url.trim() } : { sourceFilePath: state.sourceFilePath }),
 			title: state.title || null,
 			startTime: state.startSeconds,
 			endTime: state.endSeconds,
@@ -144,22 +212,69 @@ async function runDownload(): Promise<void> {
 }
 
 async function handleNext(): Promise<void> {
-	if (state.currentStep === 1 && !state.url.trim()) {
-		setState({ status: 'Please enter a URL to continue.' });
-		return;
-	}
-
 	if (state.currentStep === 1) {
+		const hasUrl = state.sourceType === 'url' && state.url.trim().length > 0;
+		const hasFile =
+			state.sourceType === 'file' && (state.sourceFilePath.trim().length > 0 || state.sourceFile != null);
+		if (!hasUrl && !hasFile) {
+			setState({
+				status:
+					state.sourceType === 'url'
+						? 'Please enter a URL to continue.'
+						: 'Please choose an MP4 file to continue.',
+			});
+			return;
+		}
+
 		setState({ isFetchingVideoInfo: true, status: '' });
 		try {
-			if (fetchInfoTimeoutId) {
-				clearTimeout(fetchInfoTimeoutId);
-				fetchInfoTimeoutId = null;
+			if (state.sourceType === 'file') {
+				if (state.sourceFile != null) {
+					const data = await getLocalFileInfoFromFile(state.sourceFile);
+					if (data.duration != null) {
+						setState({
+							durationSeconds: data.duration,
+							startSeconds: 0,
+							endSeconds: data.duration,
+						});
+					}
+					if (data.title && !state.titleTouched) {
+						setState({ title: data.title, titleTouched: false });
+					}
+				} else {
+					const api = window.electronAPI;
+					if (!api?.getLocalFileInfo) {
+						setState({ status: 'App not ready', isFetchingVideoInfo: false });
+						return;
+					}
+					const data = await api.getLocalFileInfo(state.sourceFilePath);
+					if (data.duration != null) {
+						setState({
+							durationSeconds: data.duration,
+							startSeconds: 0,
+							endSeconds: data.duration,
+						});
+					}
+					if (data.title && !state.titleTouched) {
+						setState({ title: data.title, titleTouched: false });
+					}
+				}
+			} else {
+				if (fetchInfoTimeoutId) {
+					clearTimeout(fetchInfoTimeoutId);
+					fetchInfoTimeoutId = null;
+				}
+				await fetchVideoInfo(state.url, true);
 			}
-			await fetchVideoInfo(state.url, true);
 		} catch (err) {
-			console.error('Error fetching video info:', err);
-			setState({ status: 'Could not fetch video info. Please check the URL.', isFetchingVideoInfo: false });
+			console.error('Error fetching source info:', err);
+			setState({
+				status:
+					state.sourceType === 'url'
+						? 'Could not fetch video info. Please check the URL.'
+						: 'Could not read file. Please choose a valid MP4 file.',
+				isFetchingVideoInfo: false,
+			});
 			return;
 		}
 		setState({ isFetchingVideoInfo: false });
@@ -184,7 +299,10 @@ async function handleNext(): Promise<void> {
 
 function handleReset(): void {
 	setState({
+		sourceType: 'url',
 		url: '',
+		sourceFilePath: '',
+		sourceFile: null,
 		title: '',
 		titleTouched: false,
 		durationSeconds: null,
@@ -237,27 +355,125 @@ function renderStepContent(): HTMLElement {
 
 	switch (state.currentStep) {
 		case 1: {
-			step.append(
-				el('h2', { className: 'step-title' }, 'Step 1 · URL'),
-				el('p', { className: 'step-description' }, 'Paste the video or audio URL you want to convert to MP3.'),
-				el(
-					'p',
-					{ className: 'disclaimer' },
-					"Only download content you have the right to use. You are responsible for complying with each site's terms of service and applicable laws."
-				),
-				el('input', {
-					className: 'text-input',
-					type: 'url',
-					id: 'url',
-					placeholder: 'https://example.com/video or paste a link',
-					'aria-label': 'URL',
-					value: state.url,
-					required: 'true',
-				})
+			const sourceTabs = document.createElement('div');
+			sourceTabs.className = 'source-tabs';
+			sourceTabs.setAttribute('role', 'tablist');
+			sourceTabs.setAttribute('aria-label', 'Source type');
+			const urlTab = el(
+				'button',
+				{
+					type: 'button',
+					className: `source-tab ${state.sourceType === 'url' ? 'source-tab--active' : ''}`,
+					role: 'tab',
+					'aria-selected': state.sourceType === 'url' ? 'true' : 'false',
+				},
+				'Enter URL'
 			);
-			const urlInput = step.querySelector('#url') as HTMLInputElement;
-			urlInput.value = state.url;
-			urlInput.addEventListener('input', handleUrlChange);
+			const fileTab = el(
+				'button',
+				{
+					type: 'button',
+					className: `source-tab ${state.sourceType === 'file' ? 'source-tab--active' : ''}`,
+					role: 'tab',
+					'aria-selected': state.sourceType === 'file' ? 'true' : 'false',
+				},
+				'Upload file'
+			);
+			urlTab.addEventListener('click', () =>
+				setState({ sourceType: 'url', sourceFilePath: '', sourceFile: null, status: '' })
+			);
+			fileTab.addEventListener('click', () =>
+				setState({ sourceType: 'file', url: '', sourceFilePath: '', sourceFile: null, status: '' })
+			);
+			sourceTabs.append(urlTab, fileTab);
+
+			step.append(
+				el('h2', { className: 'step-title' }, 'Step 1 · Source'),
+				el('p', { className: 'step-description' }, 'Paste a URL or upload an MP4 file to convert to MP3.'),
+				sourceTabs
+			);
+
+			if (state.sourceType === 'url') {
+				step.append(
+					el(
+						'p',
+						{ className: 'disclaimer' },
+						"Only download content you have the right to use. You are responsible for complying with each site's terms of service and applicable laws."
+					),
+					el('input', {
+						className: 'text-input',
+						type: 'url',
+						id: 'url',
+						placeholder: 'https://example.com/video or paste a link',
+						'aria-label': 'URL',
+						value: state.url,
+						required: 'true',
+					})
+				);
+				const urlInput = step.querySelector('#url') as HTMLInputElement;
+				if (urlInput) {
+					urlInput.value = state.url;
+					urlInput.addEventListener('input', handleUrlChange);
+				}
+			} else {
+				const isElectron = typeof window.electronAPI?.openFileDialog === 'function';
+				const chosenName =
+					state.sourceFile?.name ?? (state.sourceFilePath ? state.sourceFilePath.split(/[/\\]/).pop() : null);
+				const fileZone = document.createElement('div');
+				fileZone.className = 'file-zone';
+				if (chosenName) fileZone.classList.add('file-zone--has-file');
+
+				if (isElectron) {
+					const chooseBtn = el(
+						'button',
+						{
+							type: 'button',
+							className: 'btn btn--secondary file-choose-btn',
+							'aria-label': 'Choose MP4 file',
+						},
+						chosenName ?? 'Choose MP4 file…'
+					);
+					fileZone.appendChild(chooseBtn);
+					chooseBtn.addEventListener('click', async () => {
+						const api = window.electronAPI;
+						if (!api?.openFileDialog) return;
+						setState({ status: '' });
+						try {
+							const { path: selectedPath } = await api.openFileDialog();
+							if (selectedPath) {
+								setState({ sourceFilePath: selectedPath, sourceFile: null, status: '' });
+							}
+						} catch (err) {
+							setState({ status: err instanceof Error ? err.message : String(err) });
+						}
+					});
+				} else {
+					const fileInput = document.createElement('input');
+					fileInput.type = 'file';
+					fileInput.accept = '.mp3,.mp4,audio/mpeg,video/mp4';
+					fileInput.className = 'file-input-hidden';
+					fileInput.setAttribute('aria-label', 'Choose MP4 file');
+					const chooseBtn = el(
+						'button',
+						{
+							type: 'button',
+							className: 'btn btn--secondary file-choose-btn',
+							'aria-label': 'Choose MP4 file',
+						},
+						chosenName ?? 'Choose MP4 file…'
+					);
+					fileZone.append(fileInput, chooseBtn);
+					chooseBtn.addEventListener('click', () => fileInput.click());
+					fileInput.addEventListener('change', () => {
+						const file = fileInput.files?.[0];
+						if (file) {
+							setState({ sourceFile: file, sourceFilePath: '', status: '' });
+						}
+						fileInput.value = '';
+					});
+				}
+				step.append(fileZone);
+			}
 			break;
 		}
 		case 2: {
@@ -278,6 +494,7 @@ function renderStepContent(): HTMLElement {
 			titleInput.addEventListener('input', (e) => {
 				const v = (e.target as HTMLInputElement).value;
 				setState({ title: v, titleTouched: state.titleTouched || true });
+				requestAnimationFrame(() => document.getElementById('title')?.focus());
 			});
 			break;
 		}
@@ -295,26 +512,91 @@ function renderStepContent(): HTMLElement {
 				const endVal = state.endSeconds ?? dur;
 				const startInputEl = document.createElement('input');
 				startInputEl.type = 'text';
+				startInputEl.id = 'trim-start';
 				startInputEl.className = 'text-input text-input--inline';
 				startInputEl.value = state.startInput;
 				startInputEl.addEventListener('input', (e) => {
-					const value = (e.target as HTMLInputElement).value;
-					setState({ startInput: value });
+					const input = e.target as HTMLInputElement;
+					const value = input.value;
+					const caretStart = input.selectionStart ?? 0;
 					const secs = timeToSeconds(value);
-					if (secs == null || secs < 0 || secs >= endVal || secs > dur) return;
-					setState({ startSeconds: secs });
+					if (secs == null || secs < 0 || secs > dur) {
+						setState({ startInput: value, status: '' });
+						requestAnimationFrame(() => {
+							const el = document.getElementById('trim-start') as HTMLInputElement;
+							if (el) {
+								el.focus();
+								const pos = Math.min(caretStart + 1, el.value.length);
+								el.setSelectionRange(pos, pos);
+							}
+						});
+						return;
+					}
+					if (secs >= endVal) {
+						setState({
+							startInput: secondsToTime(state.startSeconds),
+							status: 'Start must be before end.',
+						});
+						requestAnimationFrame(() => document.getElementById('trim-start')?.focus());
+						return;
+					}
+					setState({ startInput: value, startSeconds: secs, status: '' });
+					requestAnimationFrame(() => {
+						const el = document.getElementById('trim-start') as HTMLInputElement;
+						if (el) {
+							el.focus();
+							const pos = Math.min(caretStart + 1, el.value.length);
+							el.setSelectionRange(pos, pos);
+						}
+					});
 				});
 				const endInputEl = document.createElement('input');
 				endInputEl.type = 'text';
+				endInputEl.id = 'trim-end';
 				endInputEl.className = 'text-input text-input--inline';
 				endInputEl.value = state.endInput;
 				endInputEl.addEventListener('input', (e) => {
-					const value = (e.target as HTMLInputElement).value;
-					setState({ endInput: value });
+					const input = e.target as HTMLInputElement;
+					const value = input.value;
+					const caretStart = input.selectionStart ?? 0;
 					const secs = timeToSeconds(value);
-					if (secs == null || secs <= state.startSeconds || secs > dur) return;
-					setState({ endSeconds: secs });
+					if (secs == null || secs < 0 || secs > dur) {
+						setState({ endInput: value, status: '' });
+						requestAnimationFrame(() => {
+							const el = document.getElementById('trim-end') as HTMLInputElement;
+							if (el) {
+								el.focus();
+								const pos = Math.min(caretStart + 1, el.value.length);
+								el.setSelectionRange(pos, pos);
+							}
+						});
+						return;
+					}
+					if (secs <= state.startSeconds) {
+						setState({
+							endInput: secondsToTime(state.endSeconds ?? dur),
+							status: 'End must be after start.',
+						});
+						requestAnimationFrame(() => document.getElementById('trim-end')?.focus());
+						return;
+					}
+					setState({ endInput: value, endSeconds: secs, status: '' });
+					requestAnimationFrame(() => {
+						const el = document.getElementById('trim-end') as HTMLInputElement;
+						if (el) {
+							el.focus();
+							const pos = Math.min(caretStart + 1, el.value.length);
+							el.setSelectionRange(pos, pos);
+						}
+					});
 				});
+
+				let liveStart = state.startSeconds;
+				let liveEnd = endVal;
+				const selectionDiv = document.createElement('div');
+				selectionDiv.className = 'dual-range-selection';
+				selectionDiv.style.left = `${(liveStart / dur) * 100}%`;
+				selectionDiv.style.width = `${((liveEnd - liveStart) / dur) * 100}%`;
 
 				const rangeStart = document.createElement('input');
 				rangeStart.type = 'range';
@@ -323,9 +605,22 @@ function renderStepContent(): HTMLElement {
 				rangeStart.value = String(state.startSeconds);
 				rangeStart.className = 'dual-range-input dual-range-input--start';
 				rangeStart.addEventListener('input', (e) => {
+					const input = e.target as HTMLInputElement;
+					const value = Number(input.value);
+					if (value >= liveEnd) {
+						input.value = String(liveStart);
+						return;
+					}
+					liveStart = value;
+					selectionDiv.style.left = `${(value / dur) * 100}%`;
+					selectionDiv.style.width = `${((liveEnd - value) / dur) * 100}%`;
+					startInputEl.value = secondsToTime(value);
+				});
+				rangeStart.addEventListener('change', (e) => {
 					const value = Number((e.target as HTMLInputElement).value);
-					if (value >= (state.endSeconds ?? dur)) return;
-					setState({ startSeconds: value });
+					const endSec = state.endSeconds ?? dur;
+					const clamped = Math.min(value, endSec - 0.001);
+					setState({ startSeconds: clamped });
 				});
 				const rangeEnd = document.createElement('input');
 				rangeEnd.type = 'range';
@@ -334,10 +629,31 @@ function renderStepContent(): HTMLElement {
 				rangeEnd.value = String(endVal);
 				rangeEnd.className = 'dual-range-input dual-range-input--end';
 				rangeEnd.addEventListener('input', (e) => {
-					const value = Number((e.target as HTMLInputElement).value);
-					if (value <= state.startSeconds) return;
-					setState({ endSeconds: value });
+					const input = e.target as HTMLInputElement;
+					const value = Number(input.value);
+					if (value <= liveStart) {
+						input.value = String(liveEnd);
+						return;
+					}
+					liveEnd = value;
+					selectionDiv.style.left = `${(liveStart / dur) * 100}%`;
+					selectionDiv.style.width = `${((value - liveStart) / dur) * 100}%`;
+					endInputEl.value = secondsToTime(value);
 				});
+				rangeEnd.addEventListener('change', (e) => {
+					const value = Number((e.target as HTMLInputElement).value);
+					const clamped = Math.max(value, state.startSeconds + 0.001);
+					setState({ endSeconds: clamped });
+				});
+
+				const trackDiv = document.createElement('div');
+				trackDiv.className = 'dual-range-track';
+				trackDiv.appendChild(selectionDiv);
+				const dualRangeWrap = document.createElement('div');
+				dualRangeWrap.className = 'dual-range';
+				dualRangeWrap.appendChild(trackDiv);
+				dualRangeWrap.appendChild(rangeStart);
+				dualRangeWrap.appendChild(rangeEnd);
 
 				step.append(
 					el(
@@ -360,27 +676,32 @@ function renderStepContent(): HTMLElement {
 							endInputEl
 						)
 					),
-					el(
-						'div',
-						{ className: 'dual-range' },
-						el(
-							'div',
-							{ className: 'dual-range-track' },
-							el('div', {
-								className: 'dual-range-selection',
-								style: `left: ${(state.startSeconds / dur) * 100}%; width: ${((endVal - state.startSeconds) / dur) * 100}%`,
-							})
-						),
-						rangeStart,
-						rangeEnd
-					)
+					dualRangeWrap
 				);
+			} else if (state.sourceType === 'file' && state.sourceFile != null) {
+				step.append(
+					el(
+						'p',
+						{ className: 'muted' },
+						"Duration couldn't be read from your file in the browser. Use the desktop app to trim, or continue to convert the full file."
+					),
+					el('button', { type: 'button', className: 'btn btn--primary' }, 'Continue without trimming')
+				);
+				const continueBtn = step.querySelector('.btn--primary');
+				if (continueBtn) {
+					continueBtn.addEventListener('click', () => {
+						setState({
+							currentStep: 4,
+							maxStepReached: Math.max(state.maxStepReached, 4),
+						});
+					});
+				}
 			} else {
 				step.append(
 					el(
 						'p',
 						{ className: 'muted' },
-						"Enter a valid URL in step 1 to fetch the video duration, then you'll be able to trim."
+						"Enter a valid URL or choose a file in step 1 to get the duration, then you'll be able to trim."
 					)
 				);
 			}
@@ -429,7 +750,9 @@ function renderStepContent(): HTMLElement {
 				el(
 					'p',
 					{ className: 'step-description' },
-					"We're downloading and converting your audio. This can take a little while for longer videos."
+					state.sourceType === 'file'
+						? "We're converting your audio. This can take a little while for longer files."
+						: "We're downloading and converting your audio. This can take a little while for longer videos."
 				),
 				el(
 					'div',
@@ -453,7 +776,7 @@ function renderStepContent(): HTMLElement {
 						el('div', { className: 'success-circle' }),
 						el('div', { className: 'success-check' })
 					),
-					el('button', { type: 'button', className: 'btn btn--primary' }, 'Start new download')
+					el('button', { type: 'button', className: 'btn btn--primary' }, 'Start over')
 				)
 			);
 			const btn = step.querySelector('.btn--primary');
@@ -531,15 +854,22 @@ function render(): void {
 				: state.currentStep < 4
 					? 'Continue'
 					: state.currentStep === 4
-						? 'Download'
+						? state.sourceType === 'file'
+							? 'Convert'
+							: 'Download'
 						: 'Continue';
+		const hasSource =
+			state.currentStep !== 1 ||
+			(state.sourceType === 'url' && state.url.trim().length > 0) ||
+			(state.sourceType === 'file' && (state.sourceFilePath.trim().length > 0 || state.sourceFile != null));
 		const nextBtn = el('button', {
 			type: 'button',
 			className: 'btn btn--primary',
 			disabled:
 				state.isLoading ||
 				(state.currentStep === 1 && state.isFetchingVideoInfo) ||
-				state.currentStep >= TOTAL_STEPS
+				state.currentStep >= TOTAL_STEPS ||
+				!hasSource
 					? 'true'
 					: undefined,
 		});
