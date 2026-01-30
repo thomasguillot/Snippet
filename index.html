@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<script>
+		(function () {
+			var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			document.documentElement.classList.add(dark ? 'dark' : 'light');
+		})();
+	</script>
 	<meta charset="UTF-8">
 	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">
 	<meta http-equiv="Permissions-Policy" content="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()">

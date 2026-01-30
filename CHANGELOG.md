@@ -1,9 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Step 3 · Trim:** Start/end time inputs keep focus while typing; values are driven by `state.startInput`/`state.endInput` and synced from numeric state when duration is set (fetch, file info, slider) or URL is cleared.
+- **Dark mode / loader:** Inline script in `index.html` sets theme class (`dark`/`light`) on `<html>` from system preference before first paint to avoid a flash of light theme. Mount loader shows an indeterminate progress bar (Chakra Progress, `value={null}`) for a minimum duration then fades out into the app.
+
 ## 3.0.0
 
 - **React + Chakra UI:** Full migration from vanilla TypeScript to React with Chakra UI. Renderer is now React (TSX); main process and preload remain TypeScript. UI uses Chakra components (Card, Stack, Tabs, Field, Input, Slider, Button, Alert, Badge, etc.) with a centered card layout.
-  =- **Dark mode:** System-based dark mode via `next-themes` (ThemeProvider with `defaultTheme="system"`, `attribute="class"`). No forced theme.
+- **Dark mode:** System-based dark mode via `next-themes` (ThemeProvider with `defaultTheme="system"`, `attribute="class"`). No forced theme.
 - **Step 3 · Trim:** Range slider only shown when duration is available; when duration is missing in the browser, step shows disabled inputs, a warning Alert, and “Continue without trimming”. On localhost, a fake duration is used so the trim form and slider stay interactive. Slider and input handlers hardened (array checks, start &lt; end).
 - **App icon:** Single source PNG at `src/assets/app-icon.png` (1024×1024 recommended). macOS `.icns` is generated at build time: `scripts/generate-icon.sh` uses `sips` and `iconutil` to produce all required sizes and writes `dist/app.icns`. `npm run generate-icon` runs the script; `build:electron` runs it before packaging. No committed `.icns`; `dist/` is already ignored.
 - **Dependencies:** Added React, react-dom, @chakra-ui/react, @emotion/react, next-themes, react-icons, @vitejs/plugin-react, @types/react, @types/react-dom. Removed vanilla renderer and `src/style.scss`.

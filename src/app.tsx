@@ -91,6 +91,8 @@ export function App() {
 						next.durationSeconds = data.duration;
 						next.startSeconds = 0;
 						next.endSeconds = data.duration;
+						next.startInput = secondsToTime(0);
+						next.endInput = secondsToTime(data.duration);
 					}
 					if (data.title && !prev.titleTouched) {
 						next.title = data.title;
@@ -181,6 +183,8 @@ export function App() {
 								next.durationSeconds = data.duration;
 								next.startSeconds = 0;
 								next.endSeconds = data.duration;
+								next.startInput = secondsToTime(0);
+								next.endInput = secondsToTime(data.duration);
 							}
 							if (data.title && !prev.titleTouched) next.title = data.title;
 							return next;
@@ -198,6 +202,8 @@ export function App() {
 								next.durationSeconds = data.duration;
 								next.startSeconds = 0;
 								next.endSeconds = data.duration;
+								next.startInput = secondsToTime(0);
+								next.endInput = secondsToTime(data.duration);
 							}
 							if (data.title && !prev.titleTouched) next.title = data.title;
 							return next;
@@ -211,6 +217,8 @@ export function App() {
 							next.durationSeconds = data.duration;
 							next.startSeconds = 0;
 							next.endSeconds = data.duration;
+							next.startInput = secondsToTime(0);
+							next.endInput = secondsToTime(data.duration);
 						}
 						if (data.title && !prev.titleTouched) next.title = data.title;
 						return next;
@@ -276,8 +284,6 @@ export function App() {
 						: 'Download'
 					: 'Continue';
 
-	// Sync time inputs from numeric state
-	const startInput = secondsToTime(state.startSeconds);
 	const dur = state.durationSeconds ?? 0;
 	const endVal = state.endSeconds ?? dur;
 
@@ -287,12 +293,6 @@ export function App() {
 	const effectiveDur = dur > 0 ? dur : isBrowser ? FAKE_DURATION : 0;
 	const effectiveEndVal = dur > 0 ? endVal : isBrowser ? effectiveDur : 0;
 	const formDisabled = dur <= 0 && !isBrowser;
-	const endInput =
-		state.endSeconds != null
-			? secondsToTime(state.endSeconds)
-			: isBrowser && dur <= 0
-				? secondsToTime(effectiveDur)
-				: '';
 
 	const stepHeader =
 		state.currentStep === 1
@@ -407,8 +407,10 @@ export function App() {
 															? {}
 															: {
 																	durationSeconds: null,
-																	startSeconds: 0,
+																	endInput: '',
 																	endSeconds: null,
+																	startInput: '00:00:00',
+																	startSeconds: 0,
 																	title: '',
 																	titleTouched: false,
 																}),
@@ -540,7 +542,7 @@ export function App() {
 												<Field.Label>Start</Field.Label>
 												<Input
 													id="trim-start"
-													value={startInput}
+													value={state.startInput}
 													disabled={formDisabled}
 													onChange={(e) => {
 														if (formDisabled) return;
@@ -574,7 +576,7 @@ export function App() {
 												<Field.Label>End</Field.Label>
 												<Input
 													id="trim-end"
-													value={endInput}
+													value={state.endInput}
 													disabled={formDisabled}
 													onChange={(e) => {
 														if (formDisabled) return;
@@ -624,8 +626,10 @@ export function App() {
 														) {
 															setState((prev) => ({
 																...prev,
-																startSeconds: s,
+																endInput: secondsToTime(end),
 																endSeconds: end,
+																startInput: secondsToTime(s),
+																startSeconds: s,
 															}));
 														}
 													}
