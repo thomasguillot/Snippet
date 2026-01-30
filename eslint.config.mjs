@@ -8,7 +8,7 @@ export default tseslint.config(
 	...tseslint.configs.recommended,
 	eslintConfigPrettier,
 	{
-		files: ['src/**/*.ts'],
+		files: ['src/**/*.{ts,tsx}'],
 		languageOptions: {
 			parserOptions: {
 				ecmaVersion: 'latest',
@@ -41,6 +41,6 @@ export default tseslint.config(
 		},
 	},
 	{
-		ignores: ['dist/**', 'node_modules/**', 'build/**', 'bin/**', 'scripts/**', 'main.js', 'preload.js', 'theme.js', 'vite.config.ts'],
+		ignores: ['dist/**', 'node_modules/**', 'build/**', 'bin/**', 'scripts/**', 'main.js', 'preload.js', 'theme.js', 'vite.config.ts', 'vite.config.mts'],
 	}
 );

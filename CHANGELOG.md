@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.0
+
+- **React + Chakra UI:** Full migration from vanilla TypeScript to React with Chakra UI. Renderer is now React (TSX); main process and preload remain TypeScript. UI uses Chakra components (Card, Stack, Tabs, Field, Input, Slider, Button, Alert, Badge, etc.) with a centered card layout.
+  =- **Dark mode:** System-based dark mode via `next-themes` (ThemeProvider with `defaultTheme="system"`, `attribute="class"`). No forced theme.
+- **Step 3 · Trim:** Range slider only shown when duration is available; when duration is missing in the browser, step shows disabled inputs, a warning Alert, and “Continue without trimming”. On localhost, a fake duration is used so the trim form and slider stay interactive. Slider and input handlers hardened (array checks, start &lt; end).
+- **App icon:** Single source PNG at `src/assets/app-icon.png` (1024×1024 recommended). macOS `.icns` is generated at build time: `scripts/generate-icon.sh` uses `sips` and `iconutil` to produce all required sizes and writes `dist/app.icns`. `npm run generate-icon` runs the script; `build:electron` runs it before packaging. No committed `.icns`; `dist/` is already ignored.
+- **Dependencies:** Added React, react-dom, @chakra-ui/react, @emotion/react, next-themes, react-icons, @vitejs/plugin-react, @types/react, @types/react-dom. Removed vanilla renderer and `src/style.scss`.
+
 ## 2.1.1
 
 - **Step 1 · Source:** Only one source at a time — the other tab (URL or file) is disabled when one is in use; Reset clears the source but keeps the current tab when on step 1; Reset button is disabled until the user has entered a URL or chosen a file; URL input keeps focus while typing; Enter URL / Upload file styled as full-width tabs with bottom border when active; card keeps a fixed min-height when switching tabs so the layout doesn’t jump.
