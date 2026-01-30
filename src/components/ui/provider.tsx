@@ -5,6 +5,18 @@ import { ColorModeProvider } from './color-mode';
 const LOADER_MIN_MS = 2400;
 const FADE_DURATION_MS = 125;
 
+function LoaderProgress() {
+	return (
+		<AbsoluteCenter axis="both" width="100%" maxW="256px" px={6}>
+			<Progress.Root value={null} variant="subtle" width="100%">
+				<Progress.Track>
+					<Progress.Range />
+				</Progress.Track>
+			</Progress.Root>
+		</AbsoluteCenter>
+	);
+}
+
 interface ProviderProps {
 	children: ReactNode;
 }
@@ -39,14 +51,15 @@ function MountLoader(props: { children: ReactNode }) {
 
 	if (!ready && !fadeComplete) {
 		return (
-			<Box bg="bg" height="100vh" position="fixed" width="100%" zIndex="banner">
-				<AbsoluteCenter axis="both" width="100%" maxW="256px" px={6}>
-					<Progress.Root value={null} width="100%" variant="subtle">
-						<Progress.Track>
-							<Progress.Range />
-						</Progress.Track>
-					</Progress.Root>
-				</AbsoluteCenter>
+			<Box
+				bg="bg"
+				height="100vh"
+				position="fixed"
+				width="100%"
+				zIndex="banner"
+				style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+			>
+				<LoaderProgress />
 			</Box>
 		);
 	}
@@ -71,13 +84,7 @@ function MountLoader(props: { children: ReactNode }) {
 				onTransitionEnd={handleTransitionEnd}
 				pointerEvents={fadeOut ? 'none' : 'auto'}
 			>
-				<AbsoluteCenter axis="both" width="100%" maxW="256px" px={6}>
-					<Progress.Root value={null} width="100%" variant="subtle">
-						<Progress.Track>
-							<Progress.Range />
-						</Progress.Track>
-					</Progress.Root>
-				</AbsoluteCenter>
+				<LoaderProgress />
 			</Box>
 		</>
 	);

@@ -282,16 +282,7 @@ export function App() {
 		(state.sourceType === 'file' && (state.sourceFilePath.trim().length > 0 || state.sourceFile != null));
 	const hasSourceToReset =
 		state.url.trim().length > 0 || state.sourceFilePath.trim().length > 0 || state.sourceFile != null;
-	const nextLabel =
-		state.currentStep === 1 && state.isFetchingVideoInfo
-			? 'Loading…'
-			: state.currentStep < 4
-				? 'Continue'
-				: state.currentStep === 4
-					? state.sourceType === 'file'
-						? 'Convert'
-						: 'Download'
-					: 'Continue';
+	const nextLabel = state.currentStep === 1 && state.isFetchingVideoInfo ? 'Loading…' : 'Continue';
 
 	const dur = state.durationSeconds ?? 0;
 	const endVal = state.endSeconds ?? dur;
@@ -332,7 +323,7 @@ export function App() {
 								};
 
 	return (
-		<Box position="relative" minH="100vh" w="100%">
+		<Box minH="100vh" position="relative" w="100%" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
 			{state.currentStep === 6 && windowSize.width > 0 && windowSize.height > 0 && (
 				<Box height="100vh" left={0} pointerEvents="none" position="fixed" top={0} width="100vw" zIndex={0}>
 					<Confetti
@@ -347,7 +338,12 @@ export function App() {
 				</Box>
 			)}
 			<AbsoluteCenter axis="both" width="100%" maxW="512px" p={6} zIndex={1}>
-				<Card.Root width="100%" size="lg" variant="elevated">
+				<Card.Root
+					width="100%"
+					size="lg"
+					variant="elevated"
+					style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+				>
 					<Card.Header
 						borderBottomWidth={state.currentStep === 6 ? 0 : '1px'}
 						paddingBlock="3"
@@ -396,7 +392,7 @@ export function App() {
 						</HStack>
 					</Card.Header>
 					{state.currentStep !== 6 && (
-						<Card.Body gap={5}>
+						<Card.Body gap={5} minHeight="20rem">
 							{/* Step content */}
 							{state.currentStep === 1 && (
 								<Stack gap={4}>
@@ -550,6 +546,7 @@ export function App() {
 											id="title"
 											placeholder="Video title..."
 											value={state.title}
+											aria-label="Title"
 											onChange={(e) =>
 												setState((prev) => ({
 													...prev,

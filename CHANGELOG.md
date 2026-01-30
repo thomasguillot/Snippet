@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.2
+
+- **Card:** Body has consistent minimum height across steps (no resize when switching steps); step 4 footer button label is always “Continue” (no Convert/Download).
+- **Electron:** Window draggable via app region: whole app is drag region, card has no-drag so it stays interactive.
+- **Provider:** Mount loader progress bar extracted to reusable `LoaderProgress` component.
+
 ## 3.0.1
 
 - **Step 3 · Trim:** Start/end time inputs keep focus while typing; values are driven by `state.startInput`/`state.endInput` and synced from numeric state when duration is set (fetch, file info, slider) or URL is cleared.
