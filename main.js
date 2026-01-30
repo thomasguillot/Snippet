@@ -451,7 +451,8 @@ ipcMain.handle('open-file-dialog', async (event) => {
     if (!isAllowedSender(event)) {
         throw new Error('Unauthorized');
     }
-    const win = event.sender.getOwnerBrowserWindow?.() ?? mainWindow;
+    const win = event.sender.getOwnerBrowserWindow?.() ??
+        mainWindow;
     if (!win || win.isDestroyed()) {
         throw new Error('Window not available');
     }
@@ -499,7 +500,9 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
                 videoTitle = sanitizeFilename(title.trim());
             }
             else {
-                videoTitle = sanitizeFilename(path.basename(downloadedFilePath, path.extname(downloadedFilePath))) || 'audio';
+                videoTitle =
+                    sanitizeFilename(path.basename(downloadedFilePath, path.extname(downloadedFilePath))) ||
+                        'audio';
             }
         }
         else {

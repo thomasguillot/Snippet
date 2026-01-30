@@ -140,6 +140,7 @@ async function fetchVideoInfo(urlToFetch: string, force = false): Promise<void> 
 function handleUrlChange(e: Event): void {
 	const newUrl = (e.target as HTMLInputElement).value;
 	setState({ url: newUrl, titleTouched: false });
+	requestAnimationFrame(() => document.getElementById('url')?.focus());
 
 	if (fetchInfoTimeoutId) {
 		clearTimeout(fetchInfoTimeoutId);
@@ -299,7 +300,7 @@ async function handleNext(): Promise<void> {
 
 function handleReset(): void {
 	setState({
-		sourceType: 'url',
+		sourceType: state.currentStep === 1 ? state.sourceType : 'url',
 		url: '',
 		sourceFilePath: '',
 		sourceFile: null,
@@ -316,12 +317,6 @@ function handleReset(): void {
 		currentStep: 1,
 		maxStepReached: 1,
 	});
-}
-
-function handleDotClick(step: number): void {
-	if (step <= state.maxStepReached && step <= 4 && !state.isLoading) {
-		setState({ currentStep: step });
-	}
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -355,17 +350,22 @@ function renderStepContent(): HTMLElement {
 
 	switch (state.currentStep) {
 		case 1: {
+			const hasUrl = state.url.trim().length > 0;
+			const hasFile = state.sourceFilePath.trim().length > 0 || state.sourceFile != null;
 			const sourceTabs = document.createElement('div');
 			sourceTabs.className = 'source-tabs';
 			sourceTabs.setAttribute('role', 'tablist');
 			sourceTabs.setAttribute('aria-label', 'Source type');
+			const urlTabDisabled = hasFile;
+			const fileTabDisabled = hasUrl;
 			const urlTab = el(
 				'button',
 				{
 					type: 'button',
-					className: `source-tab ${state.sourceType === 'url' ? 'source-tab--active' : ''}`,
+					className: `source-tab ${state.sourceType === 'url' ? 'source-tab--active' : ''} ${urlTabDisabled ? 'source-tab--disabled' : ''}`,
 					role: 'tab',
 					'aria-selected': state.sourceType === 'url' ? 'true' : 'false',
+					disabled: urlTabDisabled ? 'true' : undefined,
 				},
 				'Enter URL'
 			);
@@ -373,33 +373,35 @@ function renderStepContent(): HTMLElement {
 				'button',
 				{
 					type: 'button',
-					className: `source-tab ${state.sourceType === 'file' ? 'source-tab--active' : ''}`,
+					className: `source-tab ${state.sourceType === 'file' ? 'source-tab--active' : ''} ${fileTabDisabled ? 'source-tab--disabled' : ''}`,
 					role: 'tab',
 					'aria-selected': state.sourceType === 'file' ? 'true' : 'false',
+					disabled: fileTabDisabled ? 'true' : undefined,
 				},
 				'Upload file'
 			);
-			urlTab.addEventListener('click', () =>
-				setState({ sourceType: 'url', sourceFilePath: '', sourceFile: null, status: '' })
-			);
-			fileTab.addEventListener('click', () =>
-				setState({ sourceType: 'file', url: '', sourceFilePath: '', sourceFile: null, status: '' })
-			);
+			urlTab.addEventListener('click', () => {
+				if (urlTabDisabled) return;
+				setState({ sourceType: 'url', sourceFilePath: '', sourceFile: null, status: '' });
+			});
+			fileTab.addEventListener('click', () => {
+				if (fileTabDisabled) return;
+				setState({ sourceType: 'file', url: '', sourceFilePath: '', sourceFile: null, status: '' });
+			});
 			sourceTabs.append(urlTab, fileTab);
+
+			const sourceContent = document.createElement('div');
+			sourceContent.className = 'step-source-content';
 
 			step.append(
 				el('h2', { className: 'step-title' }, 'Step 1 · Source'),
 				el('p', { className: 'step-description' }, 'Paste a URL or upload an MP4 file to convert to MP3.'),
-				sourceTabs
+				sourceTabs,
+				sourceContent
 			);
 
 			if (state.sourceType === 'url') {
-				step.append(
-					el(
-						'p',
-						{ className: 'disclaimer' },
-						"Only download content you have the right to use. You are responsible for complying with each site's terms of service and applicable laws."
-					),
+				sourceContent.append(
 					el('input', {
 						className: 'text-input',
 						type: 'url',
@@ -408,7 +410,12 @@ function renderStepContent(): HTMLElement {
 						'aria-label': 'URL',
 						value: state.url,
 						required: 'true',
-					})
+					}),
+					el(
+						'p',
+						{ className: 'disclaimer' },
+						"Only download content you have the right to use. You are responsible for complying with each site's terms of service and applicable laws."
+					)
 				);
 				const urlInput = step.querySelector('#url') as HTMLInputElement;
 				if (urlInput) {
@@ -472,7 +479,7 @@ function renderStepContent(): HTMLElement {
 						fileInput.value = '';
 					});
 				}
-				step.append(fileZone);
+				sourceContent.append(fileZone);
 			}
 			break;
 		}
@@ -821,33 +828,32 @@ function render(): void {
 				`Step ${Math.min(state.currentStep, DISPLAY_STEPS)} of ${DISPLAY_STEPS}`
 			)
 		);
-		const dots = document.createElement('div');
-		dots.className = 'dots';
-		for (let i = 1; i <= DISPLAY_STEPS; i++) {
-			const isActive = i === state.currentStep;
-			const isClickable = i <= state.maxStepReached && !state.isLoading;
-			const dot = el('button', {
-				type: 'button',
-				className: `dot ${isActive ? 'dot--active' : ''} ${isClickable ? 'dot--clickable' : ''}`,
-				'aria-label': `Go to step ${i}`,
-			});
-			dot.addEventListener('click', () => isClickable && handleDotClick(i));
-			dots.appendChild(dot);
-		}
-		footerLeft.appendChild(dots);
 		footer.appendChild(footerLeft);
 
 		const footerRight = document.createElement('div');
 		footerRight.className = 'footer-right';
 		if (state.currentStep > 1) {
-			const resetBtn = el(
+			const backBtn = el(
 				'button',
 				{ type: 'button', className: 'btn btn--secondary', disabled: state.isLoading ? 'true' : undefined },
-				'Reset'
+				'Back'
 			);
-			resetBtn.addEventListener('click', handleReset);
-			footerRight.appendChild(resetBtn);
+			backBtn.addEventListener('click', () => setState({ currentStep: state.currentStep - 1 }));
+			footerRight.appendChild(backBtn);
 		}
+		const hasSourceToReset =
+			state.url.trim().length > 0 || state.sourceFilePath.trim().length > 0 || state.sourceFile != null;
+		const resetBtn = el(
+			'button',
+			{
+				type: 'button',
+				className: 'btn btn--secondary',
+				disabled: state.isLoading || !hasSourceToReset ? 'true' : undefined,
+			},
+			'Reset'
+		);
+		resetBtn.addEventListener('click', handleReset);
+		footerRight.appendChild(resetBtn);
 		const nextLabel =
 			state.currentStep === 1 && state.isFetchingVideoInfo
 				? 'Loading…'
