@@ -10,3 +10,4 @@ bin/
 # Compiled Electron main process (from main.ts / preload.ts)
 main.js
 preload.js
+theme.js

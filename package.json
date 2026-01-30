@@ -68,6 +68,7 @@
 			"dist/**/*",
 			"main.js",
 			"preload.js",
+			"theme.js",
 			"package.json",
 			"bin/**"
 		]

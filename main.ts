@@ -1,4 +1,5 @@
 import type { BrowserWindow as BW, IpcMainInvokeEvent, Event as ElectronEvent } from 'electron';
+import { windowBackground, windowSymbolColor } from './theme';
 const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -283,11 +284,11 @@ function createWindow(): void {
 			allowRunningInsecureContent: false,
 			devTools: isDev,
 		},
-		backgroundColor: '#0a0a0a',
+		backgroundColor: windowBackground,
 		titleBarStyle: 'hiddenInset',
 		titleBarOverlay: {
-			color: '#0a0a0a',
-			symbolColor: '#ffffff',
+			color: windowBackground,
+			symbolColor: windowSymbolColor,
 		},
 	});
 	mainWindow = win;

@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const theme_1 = require("./theme");
 const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -259,11 +260,11 @@ function createWindow() {
             allowRunningInsecureContent: false,
             devTools: isDev,
         },
-        backgroundColor: '#0a0a0a',
+        backgroundColor: theme_1.windowBackground,
         titleBarStyle: 'hiddenInset',
         titleBarOverlay: {
-            color: '#0a0a0a',
-            symbolColor: '#ffffff',
+            color: theme_1.windowBackground,
+            symbolColor: theme_1.windowSymbolColor,
         },
     });
     mainWindow = win;

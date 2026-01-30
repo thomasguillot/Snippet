@@ -12,6 +12,6 @@
 		"rootDir": ".",
 		"types": ["node"]
 	},
-	"include": ["main.ts", "preload.ts"],
+	"include": ["main.ts", "preload.ts", "theme.ts"],
 	"exclude": ["node_modules", "dist", "src"]
 }

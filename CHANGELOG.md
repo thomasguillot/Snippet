@@ -4,6 +4,7 @@
 
 - **Step 1 · Source:** Only one source at a time — the other tab (URL or file) is disabled when one is in use; Reset clears the source but keeps the current tab when on step 1; Reset button is disabled until the user has entered a URL or chosen a file; URL input keeps focus while typing; Enter URL / Upload file styled as full-width tabs with bottom border when active; card keeps a fixed min-height when switching tabs so the layout doesn’t jump.
 - **Footer:** Dotted step navigation removed; Back button added (shown from step 2); “Step X of 4” label remains on the left; buttons (Back, Reset, Continue/Convert/Download) on the right.
+- **Theme:** Shared `theme.ts` for main-process window colors (background, title bar); main process imports from it instead of hardcoded hex in `main.ts`; values documented to match `src/style.scss`.
 
 ## 2.1.0
 
