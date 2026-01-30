@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 3.0.1
 
 - **Step 3 · Trim:** Start/end time inputs keep focus while typing; values are driven by `state.startInput`/`state.endInput` and synced from numeric state when duration is set (fetch, file info, slider) or URL is cleared.
 - **Dark mode / loader:** Inline script in `index.html` sets theme class (`dark`/`light`) on `<html>` from system preference before first paint to avoid a flash of light theme. Mount loader shows an indeterminate progress bar (Chakra Progress, `value={null}`) for a minimum duration then fades out into the app.
+- **Step 6 · Success:** Copy updated to “Conversion complete!” / “Your MP3 is ready.”; confetti (react-confetti) shown behind the card with slower physics (lower gravity, higher friction); card body hidden on step 6; single “Start over” action in card header with arrow-right icon (replaces “Reset” on step 6, duplicate button removed from body).
+- **Dependencies:** Added react-confetti.
 
 ## 3.0.0
 
