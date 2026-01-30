@@ -27,7 +27,7 @@ export default tseslint.config(
 		},
 	},
 	{
-		files: ['main.ts', 'preload.ts'],
+		files: ['main.ts', 'preload.ts', 'theme.ts'],
 		languageOptions: {
 			parserOptions: {
 				project: ['./tsconfig.json'],
@@ -41,6 +41,6 @@ export default tseslint.config(
 		},
 	},
 	{
-		ignores: ['dist/**', 'node_modules/**', 'build/**', 'bin/**', 'scripts/**', 'main.js', 'preload.js', 'vite.config.ts'],
+		ignores: ['dist/**', 'node_modules/**', 'build/**', 'bin/**', 'scripts/**', 'main.js', 'preload.js', 'theme.js', 'vite.config.ts'],
 	}
 );
