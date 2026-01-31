@@ -9,7 +9,8 @@ export interface ElectronAPI {
 		startTime?: number;
 		endTime?: number | null;
 		playbackSpeed?: number;
-	}) => Promise<{ buffer: ArrayBuffer; filename: string }>;
+	}) => Promise<{ filename: string; filePath: string }>;
+	showItemInFolder: (filePath: string) => Promise<void>;
 }
 
 declare global {

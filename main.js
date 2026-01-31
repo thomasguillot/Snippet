@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const theme_1 = require("./theme");
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -570,6 +570,15 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
                         fs.unlinkSync(downloadedFilePath);
                     }
                 };
+                const toResolve = (finalFile, filename) => {
+                    const downloadsDir = app.getPath('downloads');
+                    const destPath = path.join(downloadsDir, filename);
+                    fs.copyFileSync(finalFile, destPath);
+                    cleanupTempInput();
+                    if (fs.existsSync(finalFile))
+                        fs.unlinkSync(finalFile);
+                    resolve({ filename, filePath: destPath });
+                };
                 if (!finalOutput) {
                     const mp3Files = outputFiles
                         .filter((f) => f.endsWith('.mp3'))
@@ -581,14 +590,7 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
                     if (mp3Files.length > 0) {
                         const finalFile = path.join(tempDir, mp3Files[0].name);
                         const filename = `${videoTitle}.mp3`;
-                        const fileBuffer = fs.readFileSync(finalFile);
-                        cleanupTempInput();
-                        if (fs.existsSync(finalFile))
-                            fs.unlinkSync(finalFile);
-                        resolve({
-                            buffer: fileBuffer,
-                            filename: filename,
-                        });
+                        toResolve(finalFile, filename);
                     }
                     else {
                         cleanupTempInput();
@@ -598,14 +600,7 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
                 else {
                     const finalFile = path.join(tempDir, finalOutput);
                     const filename = `${videoTitle}.mp3`;
-                    const fileBuffer = fs.readFileSync(finalFile);
-                    cleanupTempInput();
-                    if (fs.existsSync(finalFile))
-                        fs.unlinkSync(finalFile);
-                    resolve({
-                        buffer: fileBuffer,
-                        filename: filename,
-                    });
+                    toResolve(finalFile, filename);
                 }
             })
                 .on('error', (err) => {
@@ -632,4 +627,22 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
         });
         throw error;
     }
+});
+ipcMain.handle('show-item-in-folder', async (event, { filePath }) => {
+    if (!isAllowedSender(event)) {
+        throw new Error('Unauthorized');
+    }
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+        throw new Error('File path is required');
+    }
+    const downloadsDir = app.getPath('downloads');
+    const resolved = path.resolve(filePath.trim());
+    const resolvedDownloads = path.resolve(downloadsDir);
+    if (resolved !== resolvedDownloads && !resolved.startsWith(resolvedDownloads + path.sep)) {
+        throw new Error('Path must be in the Downloads folder');
+    }
+    if (!fs.existsSync(resolved)) {
+        throw new Error('File not found');
+    }
+    shell.showItemInFolder(resolved);
 });

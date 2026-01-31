@@ -44,6 +44,7 @@ interface State {
 	isFetchingVideoInfo: boolean;
 	currentStep: number;
 	maxStepReached: number;
+	lastDownloadPath: string | null;
 }
 
 const initialState: State = {
@@ -64,6 +65,7 @@ const initialState: State = {
 	isFetchingVideoInfo: false,
 	currentStep: 1,
 	maxStepReached: 1,
+	lastDownloadPath: null,
 };
 
 async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; title?: string }> {
@@ -147,16 +149,13 @@ export function App() {
 				endTime: state.endSeconds,
 				playbackSpeed: state.playbackSpeed,
 			});
-			const blob = new Blob([result.buffer], { type: 'audio/mpeg' });
-			const downloadUrl = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = downloadUrl;
-			a.download = result.filename;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(downloadUrl);
-			setState((prev) => ({ ...prev, currentStep: 6, maxStepReached: 6, isLoading: false }));
+			setState((prev) => ({
+				...prev,
+				currentStep: 6,
+				maxStepReached: 6,
+				isLoading: false,
+				lastDownloadPath: result.filePath,
+			}));
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			setState((prev) => ({ ...prev, status: `Error: ${message}`, currentStep: 4, isLoading: false }));
@@ -277,6 +276,7 @@ export function App() {
 	const handleReset = useCallback(() => {
 		setState({
 			...initialState,
+			lastDownloadPath: null,
 			sourceType: state.currentStep === 1 ? state.sourceType : 'url',
 		});
 	}, [state.currentStep]);
@@ -343,7 +343,12 @@ export function App() {
 				</Box>
 			)}
 			<AbsoluteCenter axis="both" width="100%" maxW="512px" p={6} zIndex={1}>
-				<Stack gap={4} width="100%" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+				<Stack
+					direction="column"
+					gap={4}
+					width="100%"
+					style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+				>
 					{state.currentStep !== 6 && (
 						<Box
 							display="flex"
@@ -400,10 +405,10 @@ export function App() {
 										{stepHeader.description}
 									</Card.Description>
 								</Stack>
-								{(hasSourceToReset || state.currentStep === 6) && (
+								{(hasSourceToReset || state.currentStep === 6) && state.currentStep !== 5 && (
 									<Button
 										size={state.currentStep === 6 ? 'md' : 'xs'}
-										variant={state.currentStep === 6 ? 'solid' : 'ghost'}
+										variant={state.currentStep === 6 ? 'subtle' : 'ghost'}
 										colorPalette={state.currentStep === 6 ? 'gray' : 'red'}
 										disabled={state.isLoading}
 										onClick={handleReset}
@@ -411,7 +416,7 @@ export function App() {
 										{state.currentStep === 6 ? (
 											<>
 												Start over
-												<Icon as={FiArrowRight} fontSize="1em" />
+												<Icon as={FiArrowRight} height="16px" width="16px" />
 											</>
 										) : (
 											'Reset'
@@ -829,6 +834,19 @@ export function App() {
 							</Card.Footer>
 						)}
 					</Card.Root>
+					{state.currentStep === 6 && state.lastDownloadPath && window.electronAPI?.showItemInFolder && (
+						<Button
+							onClick={() => {
+								const api = window.electronAPI;
+								if (api?.showItemInFolder && state.lastDownloadPath) {
+									api.showItemInFolder(state.lastDownloadPath);
+								}
+							}}
+							width="100%"
+						>
+							Show in Finder
+						</Button>
+					)}
 				</Stack>
 			</AbsoluteCenter>
 		</Box>

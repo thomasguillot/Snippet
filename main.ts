@@ -1,6 +1,6 @@
 import type { BrowserWindow as BW, IpcMainInvokeEvent, Event as ElectronEvent } from 'electron';
 import { windowBackground, windowSymbolColor } from './theme';
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -654,6 +654,15 @@ ipcMain.handle(
 							}
 						};
 
+						const toResolve = (finalFile: string, filename: string) => {
+							const downloadsDir = app.getPath('downloads');
+							const destPath = path.join(downloadsDir, filename);
+							fs.copyFileSync(finalFile, destPath);
+							cleanupTempInput();
+							if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
+							resolve({ filename, filePath: destPath });
+						};
+
 						if (!finalOutput) {
 							const mp3Files = outputFiles
 								.filter((f: string) => f.endsWith('.mp3'))
@@ -666,13 +675,7 @@ ipcMain.handle(
 							if (mp3Files.length > 0) {
 								const finalFile = path.join(tempDir, mp3Files[0].name);
 								const filename = `${videoTitle}.mp3`;
-								const fileBuffer = fs.readFileSync(finalFile);
-								cleanupTempInput();
-								if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
-								resolve({
-									buffer: fileBuffer,
-									filename: filename,
-								});
+								toResolve(finalFile, filename);
 							} else {
 								cleanupTempInput();
 								reject(new Error('Output file not found'));
@@ -680,13 +683,7 @@ ipcMain.handle(
 						} else {
 							const finalFile = path.join(tempDir, finalOutput);
 							const filename = `${videoTitle}.mp3`;
-							const fileBuffer = fs.readFileSync(finalFile);
-							cleanupTempInput();
-							if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
-							resolve({
-								buffer: fileBuffer,
-								filename: filename,
-							});
+							toResolve(finalFile, filename);
 						}
 					})
 					.on('error', (err: Error) => {
@@ -715,3 +712,22 @@ ipcMain.handle(
 		}
 	}
 );
+
+ipcMain.handle('show-item-in-folder', async (event: IpcMainInvokeEvent, { filePath }: { filePath: string }) => {
+	if (!isAllowedSender(event)) {
+		throw new Error('Unauthorized');
+	}
+	if (typeof filePath !== 'string' || !filePath.trim()) {
+		throw new Error('File path is required');
+	}
+	const downloadsDir = app.getPath('downloads');
+	const resolved = path.resolve(filePath.trim());
+	const resolvedDownloads = path.resolve(downloadsDir);
+	if (resolved !== resolvedDownloads && !resolved.startsWith(resolvedDownloads + path.sep)) {
+		throw new Error('Path must be in the Downloads folder');
+	}
+	if (!fs.existsSync(resolved)) {
+		throw new Error('File not found');
+	}
+	shell.showItemInFolder(resolved);
+});

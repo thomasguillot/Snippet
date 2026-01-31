@@ -3,7 +3,9 @@
 ## 3.0.3
 
 - **Theme selector:** User can choose light / dark / system (default). Preference is persisted via next-themes (localStorage) so the chosen theme applies on next launch.
-- **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather).
+- **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather). Theme tabs are hidden on the success step (step 6).
+- **Show in Finder:** After successful conversion, a “Show in Finder” button appears below the card; opens the file’s location in the system file manager. Main process now saves MP3 directly to the user’s Downloads folder and returns the file path (no in-app blob download).
+- **Processing step:** Reset button is hidden during the processing step (step 5).
 
 ## 3.0.2
 

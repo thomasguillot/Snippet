@@ -28,4 +28,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 			playbackSpeed: playbackSpeed != null ? playbackSpeed : undefined,
 		});
 	},
+	showItemInFolder: (filePath: unknown) => {
+		if (typeof filePath !== 'string') {
+			return Promise.reject(new Error('filePath must be a string'));
+		}
+		return ipcRenderer.invoke('show-item-in-folder', { filePath });
+	},
 });
