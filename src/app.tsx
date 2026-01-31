@@ -17,8 +17,9 @@ import {
 } from '@chakra-ui/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Confetti from 'react-confetti';
+import { useTheme } from 'next-themes';
 import { getLocalFileInfoFromFile, secondsToTime, timeToSeconds } from '@/lib/utils';
-import { FiArrowRight } from 'react-icons/fi';
+import { FiArrowRight, FiMonitor, FiMoon, FiSun } from 'react-icons/fi';
 
 const TOTAL_STEPS = 6;
 const DISPLAY_STEPS = 4;
@@ -72,10 +73,14 @@ async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; 
 	return api.getVideoInfo(urlToFetch.trim());
 }
 
+type ThemeValue = 'dark' | 'light' | 'system';
+
 export function App() {
 	const [state, setState] = useState<State>(initialState);
 	const fetchInfoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [windowSize, setWindowSize] = useState({ height: 0, width: 0 });
+	const { setTheme, theme } = useTheme();
+	const themeValue = (theme === 'light' || theme === 'dark' || theme === 'system' ? theme : 'system') as ThemeValue;
 
 	useEffect(() => {
 		const updateSize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -338,192 +343,178 @@ export function App() {
 				</Box>
 			)}
 			<AbsoluteCenter axis="both" width="100%" maxW="512px" p={6} zIndex={1}>
-				<Card.Root
-					width="100%"
-					size="lg"
-					variant="elevated"
-					style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-				>
-					<Card.Header
-						borderBottomWidth={state.currentStep === 6 ? 0 : '1px'}
-						paddingBlock="3"
-						paddingInline="3"
-					>
-						<HStack justify="space-between" align="center" gap={4} width="100%">
-							<Stack gap={1} flex={1} minW={0}>
-								<HStack gap={2} align="center" flexWrap="wrap">
-									<Card.Title
-										as="h1"
-										fontFamily="heading"
-										fontSize="md"
-										fontWeight="semibold"
-										lineHeight="moderate"
-									>
-										{stepHeader.title}
-									</Card.Title>
-									{state.currentStep <= 4 && (
-										<Badge variant="subtle">
-											Step {Math.min(state.currentStep, DISPLAY_STEPS)} of {DISPLAY_STEPS}
-										</Badge>
-									)}
-								</HStack>
-								<Card.Description fontSize="xs" color="fg.muted">
-									{stepHeader.description}
-								</Card.Description>
-							</Stack>
-							{(hasSourceToReset || state.currentStep === 6) && (
-								<Button
-									size={state.currentStep === 6 ? 'md' : 'xs'}
-									variant={state.currentStep === 6 ? 'solid' : 'ghost'}
-									colorPalette={state.currentStep === 6 ? 'gray' : 'red'}
-									disabled={state.isLoading}
-									onClick={handleReset}
-								>
-									{state.currentStep === 6 ? (
-										<>
-											Start over
-											<Icon as={FiArrowRight} fontSize="1em" />
-										</>
-									) : (
-										'Reset'
-									)}
-								</Button>
-							)}
-						</HStack>
-					</Card.Header>
+				<Stack gap={4} width="100%" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
 					{state.currentStep !== 6 && (
-						<Card.Body gap={5} minHeight="20rem">
-							{/* Step content */}
-							{state.currentStep === 1 && (
-								<Stack gap={4}>
-									<Tabs.Root
-										fitted
-										variant="enclosed"
-										value={state.sourceType}
-										onValueChange={(e) => {
-											const v = e.value as SourceType;
-											setState((prev) => ({
-												...prev,
-												sourceType: v,
-												...(v === 'url'
-													? { sourceFilePath: '', sourceFile: null }
-													: { url: '' }),
-												status: '',
-											}));
-										}}
+						<Box
+							display="flex"
+							justifyContent="flex-end"
+							width="100%"
+							style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+						>
+							<Tabs.Root
+								fitted
+								size="sm"
+								value={themeValue}
+								variant="enclosed"
+								onValueChange={(e) => setTheme((e.value as ThemeValue) ?? 'system')}
+							>
+								<Tabs.List borderRadius="full">
+									<Tabs.Trigger value="system" title="System" padding={0} borderRadius="full">
+										<Icon as={FiMonitor} height="16px" width="16px" />
+									</Tabs.Trigger>
+									<Tabs.Trigger value="light" title="Light" padding={0} borderRadius="full">
+										<Icon as={FiSun} height="16px" width="16px" />
+									</Tabs.Trigger>
+									<Tabs.Trigger value="dark" title="Dark" padding={0} borderRadius="full">
+										<Icon as={FiMoon} height="16px" width="16px" />
+									</Tabs.Trigger>
+								</Tabs.List>
+							</Tabs.Root>
+						</Box>
+					)}
+					<Card.Root width="100%" size="lg" variant="elevated">
+						<Card.Header
+							borderBottomWidth={state.currentStep === 6 ? 0 : '1px'}
+							paddingBlock="3"
+							paddingInline="3"
+						>
+							<HStack justify="space-between" align="center" gap={4} width="100%">
+								<Stack gap={1} flex={1} minW={0}>
+									<HStack gap={2} align="center" flexWrap="wrap">
+										<Card.Title
+											as="h1"
+											fontFamily="heading"
+											fontSize="md"
+											fontWeight="semibold"
+											lineHeight="moderate"
+										>
+											{stepHeader.title}
+										</Card.Title>
+										{state.currentStep <= 4 && (
+											<Badge variant="subtle">
+												Step {Math.min(state.currentStep, DISPLAY_STEPS)} of {DISPLAY_STEPS}
+											</Badge>
+										)}
+									</HStack>
+									<Card.Description fontSize="xs" color="fg.muted">
+										{stepHeader.description}
+									</Card.Description>
+								</Stack>
+								{(hasSourceToReset || state.currentStep === 6) && (
+									<Button
+										size={state.currentStep === 6 ? 'md' : 'xs'}
+										variant={state.currentStep === 6 ? 'solid' : 'ghost'}
+										colorPalette={state.currentStep === 6 ? 'gray' : 'red'}
+										disabled={state.isLoading}
+										onClick={handleReset}
 									>
-										<Tabs.List>
-											<Tabs.Trigger
-												value="url"
-												disabled={!!(state.sourceFilePath || state.sourceFile)}
-											>
-												Enter URL
-											</Tabs.Trigger>
-											<Tabs.Trigger value="file" disabled={!!state.url.trim()}>
-												Upload file
-											</Tabs.Trigger>
-										</Tabs.List>
-										<Tabs.Content value="url">
-											<Field.Root mt={4}>
-												<Input
-													id="url"
-													type="url"
-													placeholder="https://example.com/video or paste a link"
-													value={state.url}
-													onChange={(e) =>
-														setState((prev) => ({
-															...prev,
-															url: e.target.value,
-															titleTouched: false,
-															...(e.target.value.trim()
-																? {}
-																: {
-																		durationSeconds: null,
-																		endInput: '',
-																		endSeconds: null,
-																		startInput: '00:00:00',
-																		startSeconds: 0,
-																		title: '',
-																		titleTouched: false,
-																	}),
-														}))
-													}
-												/>
-											</Field.Root>
-											<Text mt={2} fontSize="xs" color="fg.subtle">
-												Only download content you have the right to use. You are responsible for
-												complying with each site's terms of service and applicable laws.
-											</Text>
-										</Tabs.Content>
-										<Tabs.Content value="file">
-											<Box mt={4}>
-												{typeof window.electronAPI?.openFileDialog === 'function' ? (
-													<Button
-														variant="outline"
-														width="100%"
-														onClick={async () => {
-															const api = window.electronAPI;
-															if (!api?.openFileDialog) return;
-															setState((prev) => ({ ...prev, status: '' }));
-															try {
-																const { path: selectedPath } =
-																	await api.openFileDialog();
-																if (selectedPath) {
-																	setState((prev) => ({
-																		...prev,
-																		sourceFilePath: selectedPath,
-																		sourceFile: null,
-																		status: '',
-																	}));
-																}
-															} catch (err) {
-																setState((prev) => ({
-																	...prev,
-																	status:
-																		err instanceof Error
-																			? err.message
-																			: String(err),
-																}));
-															}
-														}}
-													>
-														{state.sourceFile?.name ??
-															(state.sourceFilePath
-																? state.sourceFilePath.split(/[/\\]/).pop()
-																: null) ??
-															'Choose MP4 file…'}
-													</Button>
-												) : (
-													<>
-														<input
-															type="file"
-															accept=".mp3,.mp4,audio/mpeg,video/mp4"
-															style={{
-																position: 'absolute',
-																opacity: 0,
-																width: 0,
-																height: 0,
-															}}
-															id="file-input"
-															onChange={(e) => {
-																const file = e.target.files?.[0];
-																if (file) {
-																	setState((prev) => ({
-																		...prev,
-																		sourceFile: file,
-																		sourceFilePath: '',
-																		status: '',
-																	}));
-																}
-																e.target.value = '';
-															}}
-														/>
+										{state.currentStep === 6 ? (
+											<>
+												Start over
+												<Icon as={FiArrowRight} fontSize="1em" />
+											</>
+										) : (
+											'Reset'
+										)}
+									</Button>
+								)}
+							</HStack>
+						</Card.Header>
+						{state.currentStep !== 6 && (
+							<Card.Body gap={5} minHeight="20rem">
+								{/* Step content */}
+								{state.currentStep === 1 && (
+									<Stack gap={4}>
+										<Tabs.Root
+											fitted
+											variant="enclosed"
+											value={state.sourceType}
+											onValueChange={(e) => {
+												const v = e.value as SourceType;
+												setState((prev) => ({
+													...prev,
+													sourceType: v,
+													...(v === 'url'
+														? { sourceFilePath: '', sourceFile: null }
+														: { url: '' }),
+													status: '',
+												}));
+											}}
+										>
+											<Tabs.List>
+												<Tabs.Trigger
+													value="url"
+													disabled={!!(state.sourceFilePath || state.sourceFile)}
+												>
+													Enter URL
+												</Tabs.Trigger>
+												<Tabs.Trigger value="file" disabled={!!state.url.trim()}>
+													Upload file
+												</Tabs.Trigger>
+											</Tabs.List>
+											<Tabs.Content value="url">
+												<Field.Root mt={4}>
+													<Input
+														id="url"
+														type="url"
+														placeholder="https://example.com/video or paste a link"
+														value={state.url}
+														onChange={(e) =>
+															setState((prev) => ({
+																...prev,
+																url: e.target.value,
+																titleTouched: false,
+																...(e.target.value.trim()
+																	? {}
+																	: {
+																			durationSeconds: null,
+																			endInput: '',
+																			endSeconds: null,
+																			startInput: '00:00:00',
+																			startSeconds: 0,
+																			title: '',
+																			titleTouched: false,
+																		}),
+															}))
+														}
+													/>
+												</Field.Root>
+												<Text mt={2} fontSize="xs" color="fg.subtle">
+													Only download content you have the right to use. You are responsible
+													for complying with each site's terms of service and applicable laws.
+												</Text>
+											</Tabs.Content>
+											<Tabs.Content value="file">
+												<Box mt={4}>
+													{typeof window.electronAPI?.openFileDialog === 'function' ? (
 														<Button
 															variant="outline"
 															width="100%"
-															onClick={() =>
-																document.getElementById('file-input')?.click()
-															}
+															onClick={async () => {
+																const api = window.electronAPI;
+																if (!api?.openFileDialog) return;
+																setState((prev) => ({ ...prev, status: '' }));
+																try {
+																	const { path: selectedPath } =
+																		await api.openFileDialog();
+																	if (selectedPath) {
+																		setState((prev) => ({
+																			...prev,
+																			sourceFilePath: selectedPath,
+																			sourceFile: null,
+																			status: '',
+																		}));
+																	}
+																} catch (err) {
+																	setState((prev) => ({
+																		...prev,
+																		status:
+																			err instanceof Error
+																				? err.message
+																				: String(err),
+																	}));
+																}
+															}}
 														>
 															{state.sourceFile?.name ??
 																(state.sourceFilePath
@@ -531,270 +522,314 @@ export function App() {
 																	: null) ??
 																'Choose MP4 file…'}
 														</Button>
-													</>
-												)}
-											</Box>
-										</Tabs.Content>
-									</Tabs.Root>
-								</Stack>
-							)}
+													) : (
+														<>
+															<input
+																type="file"
+																accept=".mp3,.mp4,audio/mpeg,video/mp4"
+																style={{
+																	position: 'absolute',
+																	opacity: 0,
+																	width: 0,
+																	height: 0,
+																}}
+																id="file-input"
+																onChange={(e) => {
+																	const file = e.target.files?.[0];
+																	if (file) {
+																		setState((prev) => ({
+																			...prev,
+																			sourceFile: file,
+																			sourceFilePath: '',
+																			status: '',
+																		}));
+																	}
+																	e.target.value = '';
+																}}
+															/>
+															<Button
+																variant="outline"
+																width="100%"
+																onClick={() =>
+																	document.getElementById('file-input')?.click()
+																}
+															>
+																{state.sourceFile?.name ??
+																	(state.sourceFilePath
+																		? state.sourceFilePath.split(/[/\\]/).pop()
+																		: null) ??
+																	'Choose MP4 file…'}
+															</Button>
+														</>
+													)}
+												</Box>
+											</Tabs.Content>
+										</Tabs.Root>
+									</Stack>
+								)}
 
-							{state.currentStep === 2 && (
-								<Stack gap={4}>
-									<Field.Root>
-										<Input
-											id="title"
-											placeholder="Video title..."
-											value={state.title}
-											aria-label="Title"
-											onChange={(e) =>
-												setState((prev) => ({
-													...prev,
-													title: e.target.value,
-													titleTouched: true,
-												}))
-											}
-										/>
-									</Field.Root>
-								</Stack>
-							)}
+								{state.currentStep === 2 && (
+									<Stack gap={4}>
+										<Field.Root>
+											<Input
+												id="title"
+												placeholder="Video title..."
+												value={state.title}
+												aria-label="Title"
+												onChange={(e) =>
+													setState((prev) => ({
+														...prev,
+														title: e.target.value,
+														titleTouched: true,
+													}))
+												}
+											/>
+										</Field.Root>
+									</Stack>
+								)}
 
-							{state.currentStep === 3 && (
-								<Stack gap={4}>
-									{hasSource ? (
-										<>
-											{state.sourceType === 'file' && state.sourceFile != null && dur <= 0 && (
-												<Alert.Root status="error">
-													<Alert.Content>
-														<Alert.Description>
-															Duration couldn't be read from your file in the browser. Use
-															the desktop app to trim, or continue to convert the full
-															file. The form below is shown for reference but won't affect
-															the output in the browser.
-														</Alert.Description>
-													</Alert.Content>
-												</Alert.Root>
-											)}
-											<HStack gap={6}>
-												<Field.Root disabled={formDisabled}>
-													<Field.Label>Start</Field.Label>
-													<Input
-														id="trim-start"
-														value={state.startInput}
-														disabled={formDisabled}
-														onChange={(e) => {
-															if (formDisabled) return;
-															const value = e.target.value;
-															const secs = timeToSeconds(value);
-															if (secs == null || secs < 0 || secs > effectiveDur) {
+								{state.currentStep === 3 && (
+									<Stack gap={4}>
+										{hasSource ? (
+											<>
+												{state.sourceType === 'file' &&
+													state.sourceFile != null &&
+													dur <= 0 && (
+														<Alert.Root status="error">
+															<Alert.Content>
+																<Alert.Description>
+																	Duration couldn't be read from your file in the
+																	browser. Use the desktop app to trim, or continue to
+																	convert the full file. The form below is shown for
+																	reference but won't affect the output in the
+																	browser.
+																</Alert.Description>
+															</Alert.Content>
+														</Alert.Root>
+													)}
+												<HStack gap={6}>
+													<Field.Root disabled={formDisabled}>
+														<Field.Label>Start</Field.Label>
+														<Input
+															id="trim-start"
+															value={state.startInput}
+															disabled={formDisabled}
+															onChange={(e) => {
+																if (formDisabled) return;
+																const value = e.target.value;
+																const secs = timeToSeconds(value);
+																if (secs == null || secs < 0 || secs > effectiveDur) {
+																	setState((prev) => ({
+																		...prev,
+																		startInput: value,
+																		status: '',
+																	}));
+																	return;
+																}
+																if (secs >= effectiveEndVal) {
+																	setState((prev) => ({
+																		...prev,
+																		status: 'Start must be before end.',
+																	}));
+																	return;
+																}
 																setState((prev) => ({
 																	...prev,
 																	startInput: value,
+																	startSeconds: secs,
 																	status: '',
 																}));
-																return;
-															}
-															if (secs >= effectiveEndVal) {
-																setState((prev) => ({
-																	...prev,
-																	status: 'Start must be before end.',
-																}));
-																return;
-															}
-															setState((prev) => ({
-																...prev,
-																startInput: value,
-																startSeconds: secs,
-																status: '',
-															}));
-														}}
-													/>
-												</Field.Root>
-												<Field.Root disabled={formDisabled}>
-													<Field.Label>End</Field.Label>
-													<Input
-														id="trim-end"
-														value={state.endInput}
-														disabled={formDisabled}
-														onChange={(e) => {
-															if (formDisabled) return;
-															const value = e.target.value;
-															const secs = timeToSeconds(value);
-															if (secs == null || secs < 0 || secs > effectiveDur) {
+															}}
+														/>
+													</Field.Root>
+													<Field.Root disabled={formDisabled}>
+														<Field.Label>End</Field.Label>
+														<Input
+															id="trim-end"
+															value={state.endInput}
+															disabled={formDisabled}
+															onChange={(e) => {
+																if (formDisabled) return;
+																const value = e.target.value;
+																const secs = timeToSeconds(value);
+																if (secs == null || secs < 0 || secs > effectiveDur) {
+																	setState((prev) => ({
+																		...prev,
+																		endInput: value,
+																		status: '',
+																	}));
+																	return;
+																}
+																if (secs <= state.startSeconds) {
+																	setState((prev) => ({
+																		...prev,
+																		status: 'End must be after start.',
+																	}));
+																	return;
+																}
 																setState((prev) => ({
 																	...prev,
 																	endInput: value,
+																	endSeconds: secs,
 																	status: '',
 																}));
-																return;
+															}}
+														/>
+													</Field.Root>
+												</HStack>
+												{effectiveDur > 0 && (
+													<Slider.Root
+														key={effectiveDur}
+														min={0}
+														max={effectiveDur}
+														step={0.1}
+														minStepsBetweenThumbs={1}
+														value={[state.startSeconds, effectiveEndVal]}
+														onValueChange={(details) => {
+															const v = details.value;
+															if (Array.isArray(v) && v.length >= 2) {
+																const [s, end] = v;
+																if (
+																	typeof s === 'number' &&
+																	typeof end === 'number' &&
+																	s < end
+																) {
+																	setState((prev) => ({
+																		...prev,
+																		endInput: secondsToTime(end),
+																		endSeconds: end,
+																		startInput: secondsToTime(s),
+																		startSeconds: s,
+																	}));
+																}
 															}
-															if (secs <= state.startSeconds) {
-																setState((prev) => ({
-																	...prev,
-																	status: 'End must be after start.',
-																}));
-																return;
-															}
-															setState((prev) => ({
-																...prev,
-																endInput: value,
-																endSeconds: secs,
-																status: '',
-															}));
 														}}
-													/>
-												</Field.Root>
-											</HStack>
-											{effectiveDur > 0 && (
-												<Slider.Root
-													key={effectiveDur}
-													min={0}
-													max={effectiveDur}
-													step={0.1}
-													minStepsBetweenThumbs={1}
-													value={[state.startSeconds, effectiveEndVal]}
-													onValueChange={(details) => {
-														const v = details.value;
-														if (Array.isArray(v) && v.length >= 2) {
-															const [s, end] = v;
-															if (
-																typeof s === 'number' &&
-																typeof end === 'number' &&
-																s < end
-															) {
+													>
+														<Slider.Control>
+															<Slider.Track>
+																<Slider.Range />
+															</Slider.Track>
+															<Slider.Thumbs />
+														</Slider.Control>
+													</Slider.Root>
+												)}
+												{state.sourceType === 'file' &&
+													state.sourceFile != null &&
+													dur <= 0 && (
+														<Button
+															variant="subtle"
+															onClick={() =>
 																setState((prev) => ({
 																	...prev,
-																	endInput: secondsToTime(end),
-																	endSeconds: end,
-																	startInput: secondsToTime(s),
-																	startSeconds: s,
-																}));
+																	currentStep: 4,
+																	maxStepReached: Math.max(prev.maxStepReached, 4),
+																}))
 															}
-														}
-													}}
-												>
-													<Slider.Control>
-														<Slider.Track>
-															<Slider.Range />
-														</Slider.Track>
-														<Slider.Thumbs />
-													</Slider.Control>
-												</Slider.Root>
-											)}
-											{state.sourceType === 'file' && state.sourceFile != null && dur <= 0 && (
-												<Button
-													variant="subtle"
-													onClick={() =>
-														setState((prev) => ({
-															...prev,
-															currentStep: 4,
-															maxStepReached: Math.max(prev.maxStepReached, 4),
-														}))
-													}
-													width="100%"
-													justifyContent="space-between"
-												>
-													Continue without trimming
-													<Icon as={FiArrowRight} marginStart={2} fontSize="1em" />
-												</Button>
-											)}
-										</>
-									) : (
-										<Text>
-											Enter a valid URL or choose a file in step 1 to get the duration, then
-											you'll be able to trim.
-										</Text>
-									)}
-								</Stack>
-							)}
-
-							{state.currentStep === 4 && (
-								<Stack gap={4}>
-									<Field.Root>
-										<HStack justify="space-between">
-											<Field.Label>Speed</Field.Label>
-											<Text fontSize="sm" color="fg.muted">
-												{state.playbackSpeed.toFixed(2)}×
+															width="100%"
+															justifyContent="space-between"
+														>
+															Continue without trimming
+															<Icon as={FiArrowRight} marginStart={2} fontSize="1em" />
+														</Button>
+													)}
+											</>
+										) : (
+											<Text>
+												Enter a valid URL or choose a file in step 1 to get the duration, then
+												you'll be able to trim.
 											</Text>
-										</HStack>
-										<Slider.Root
-											min={0.25}
-											max={2}
-											step={0.25}
-											value={[state.playbackSpeed]}
-											onValueChange={(details) => {
-												const raw = details.value;
-												const v = Array.isArray(raw) ? raw[0] : raw;
-												if (typeof v === 'number' && !Number.isNaN(v)) {
-													setState((prev) => ({ ...prev, playbackSpeed: v }));
-												}
-											}}
-											width="100%"
-										>
-											<Slider.Control>
-												<Slider.Track>
-													<Slider.Range />
-												</Slider.Track>
-												<Slider.Thumb index={0} />
-											</Slider.Control>
-										</Slider.Root>
-									</Field.Root>
-								</Stack>
-							)}
-
-							{state.currentStep === 5 && (
-								<Stack gap={4}>
-									<Progress.Root value={null}>
-										<Progress.Track>
-											<Progress.Range />
-										</Progress.Track>
-									</Progress.Root>
-									<Text fontSize="sm" color="fg.subtle">
-										Please keep the app open while we work on it.
-									</Text>
-								</Stack>
-							)}
-
-							{state.status && (
-								<Text fontSize="sm" color={state.status.includes('Error') ? 'red.400' : 'fg.muted'}>
-									{state.status}
-								</Text>
-							)}
-						</Card.Body>
-					)}
-
-					{state.currentStep <= 4 && (
-						<Card.Footer>
-							<HStack justify="flex-end" flexWrap="wrap" gap={2} width="100%">
-								{state.currentStep > 1 && (
-									<Button
-										variant="outline"
-										disabled={state.isLoading}
-										onClick={() =>
-											setState((prev) => ({ ...prev, currentStep: prev.currentStep - 1 }))
-										}
-									>
-										Back
-									</Button>
+										)}
+									</Stack>
 								)}
-								<Button
-									disabled={
-										state.isLoading ||
-										(state.currentStep === 1 && state.isFetchingVideoInfo) ||
-										state.currentStep >= TOTAL_STEPS ||
-										!hasSource
-									}
-									onClick={handleNext}
-									loading={state.currentStep === 1 && state.isFetchingVideoInfo}
-									loadingText="Loading…"
-									flexShrink={0}
-								>
-									{nextLabel}
-								</Button>
-							</HStack>
-						</Card.Footer>
-					)}
-				</Card.Root>
+
+								{state.currentStep === 4 && (
+									<Stack gap={4}>
+										<Field.Root>
+											<HStack justify="space-between">
+												<Field.Label>Speed</Field.Label>
+												<Text fontSize="sm" color="fg.muted">
+													{state.playbackSpeed.toFixed(2)}×
+												</Text>
+											</HStack>
+											<Slider.Root
+												min={0.25}
+												max={2}
+												step={0.25}
+												value={[state.playbackSpeed]}
+												onValueChange={(details) => {
+													const raw = details.value;
+													const v = Array.isArray(raw) ? raw[0] : raw;
+													if (typeof v === 'number' && !Number.isNaN(v)) {
+														setState((prev) => ({ ...prev, playbackSpeed: v }));
+													}
+												}}
+												width="100%"
+											>
+												<Slider.Control>
+													<Slider.Track>
+														<Slider.Range />
+													</Slider.Track>
+													<Slider.Thumb index={0} />
+												</Slider.Control>
+											</Slider.Root>
+										</Field.Root>
+									</Stack>
+								)}
+
+								{state.currentStep === 5 && (
+									<Stack gap={4}>
+										<Progress.Root value={null}>
+											<Progress.Track>
+												<Progress.Range />
+											</Progress.Track>
+										</Progress.Root>
+										<Text fontSize="sm" color="fg.subtle">
+											Please keep the app open while we work on it.
+										</Text>
+									</Stack>
+								)}
+
+								{state.status && (
+									<Text fontSize="sm" color={state.status.includes('Error') ? 'red.400' : 'fg.muted'}>
+										{state.status}
+									</Text>
+								)}
+							</Card.Body>
+						)}
+
+						{state.currentStep <= 4 && (
+							<Card.Footer>
+								<HStack justify="flex-end" flexWrap="wrap" gap={2} width="100%">
+									{state.currentStep > 1 && (
+										<Button
+											variant="outline"
+											disabled={state.isLoading}
+											onClick={() =>
+												setState((prev) => ({ ...prev, currentStep: prev.currentStep - 1 }))
+											}
+										>
+											Back
+										</Button>
+									)}
+									<Button
+										disabled={
+											state.isLoading ||
+											(state.currentStep === 1 && state.isFetchingVideoInfo) ||
+											state.currentStep >= TOTAL_STEPS ||
+											!hasSource
+										}
+										onClick={handleNext}
+										loading={state.currentStep === 1 && state.isFetchingVideoInfo}
+										loadingText="Loading…"
+										flexShrink={0}
+									>
+										{nextLabel}
+									</Button>
+								</HStack>
+							</Card.Footer>
+						)}
+					</Card.Root>
+				</Stack>
 			</AbsoluteCenter>
 		</Box>
 	);

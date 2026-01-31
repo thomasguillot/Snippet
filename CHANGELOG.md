@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.3
+
+- **Theme selector:** User can choose light / dark / system (default). Preference is persisted via next-themes (localStorage) so the chosen theme applies on next launch.
+- **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather).
+
 ## 3.0.2
 
 - **Card:** Body has consistent minimum height across steps (no resize when switching steps); step 4 footer button label is always “Continue” (no Convert/Download).
