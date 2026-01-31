@@ -6,6 +6,12 @@
 - **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather). Theme tabs are hidden on the success step (step 6).
 - **Show in Finder:** After successful conversion, a “Show in Finder” button appears below the card; opens the file’s location in the system file manager. Main process now saves MP3 directly to the user’s Downloads folder and returns the file path (no in-app blob download).
 - **Processing step:** Reset button is hidden during the processing step (step 5).
+- **Dev / localhost:** Video info (duration, title) works when opening the app in the browser; Vite dev API `/api/video-info` uses `bin/yt-dlp`. When no Electron, step 4 “Continue” simulates the full flow (Processing → Conversion complete) so the full flow can be experienced in dev.
+- **Keyboard:** Enter key submits Continue on each step (URL input, title, trim start/end, speed step).
+- **Dev / localhost:** Alert above the card when in browser: “You're on localhost — for testing only. Download and conversion work only in the desktop app (run: npm run dev).”
+- **Dev / localhost:** On step 6 in browser, “Show in Finder” button restarts the app (simulated flow).
+- **Dev / localhost:** Step 4 “Continue” with uploaded file on localhost now simulates the full flow (same as URL).
+- **Security:** Vite dev API `/api/video-info` blocks private IP URLs (SSRF); SECURITY.md updated (show-item-in-folder, dev-only API).
 
 ## 3.0.2
 

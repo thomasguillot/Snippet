@@ -71,8 +71,21 @@ const initialState: State = {
 async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; title?: string }> {
 	if (!urlToFetch?.trim()) return {};
 	const api = window.electronAPI;
-	if (!api?.getVideoInfo) return {};
-	return api.getVideoInfo(urlToFetch.trim());
+	if (api?.getVideoInfo) {
+		return api.getVideoInfo(urlToFetch.trim());
+	}
+	// When running in browser (no Electron), e.g. localhost in dev, use Vite dev API so video info still works
+	try {
+		const res = await fetch(`/api/video-info?url=${encodeURIComponent(urlToFetch.trim())}`);
+		if (!res.ok) return {};
+		const data = (await res.json()) as { duration?: number | null; title?: string | null };
+		return {
+			duration: data.duration ?? undefined,
+			title: data.title ?? undefined,
+		};
+	} catch {
+		return {};
+	}
 }
 
 type ThemeValue = 'dark' | 'light' | 'system';
@@ -127,18 +140,18 @@ export function App() {
 
 	const runDownload = useCallback(async () => {
 		setState((prev) => ({ ...prev, status: '', isLoading: true, currentStep: 5 }));
-		if (state.sourceType === 'file' && state.sourceFile != null) {
-			setState((prev) => ({
-				...prev,
-				status: 'Conversion and download are only available in the desktop app. Run: npm run dev',
-				isLoading: false,
-				currentStep: 4,
-			}));
-			return;
-		}
 		const api = window.electronAPI;
 		if (!api?.downloadMP3) {
-			setState((prev) => ({ ...prev, status: 'Error: App not ready', isLoading: false, currentStep: 4 }));
+			// Dev/browser: simulate the full flow so we can experience step 5 → 6 (no actual file, URL or upload)
+			setTimeout(() => {
+				setState((prev) => ({
+					...prev,
+					currentStep: 6,
+					maxStepReached: 6,
+					isLoading: false,
+					lastDownloadPath: null,
+				}));
+			}, 2000);
 			return;
 		}
 		try {
@@ -281,6 +294,20 @@ export function App() {
 		});
 	}, [state.currentStep]);
 
+	// Enter to continue on step 4 (speed); no main input, so listen at document level
+	useEffect(() => {
+		if (state.currentStep !== 4) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key !== 'Enter') return;
+			// Let the Continue button handle Enter when it's focused
+			if (e.target instanceof HTMLElement && e.target.closest('button')) return;
+			e.preventDefault();
+			handleNext();
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => document.removeEventListener('keydown', onKeyDown);
+	}, [state.currentStep, handleNext]);
+
 	const hasSource =
 		state.currentStep !== 1 ||
 		(state.sourceType === 'url' && state.url.trim().length > 0) ||
@@ -377,6 +404,16 @@ export function App() {
 							</Tabs.Root>
 						</Box>
 					)}
+					{typeof window !== 'undefined' && !window.electronAPI && (
+						<Alert.Root status="warning" variant="subtle">
+							<Alert.Content>
+								<Alert.Description>
+									You're on localhost — for testing only. Download and conversion work only in the
+									desktop app (run: npm run dev).
+								</Alert.Description>
+							</Alert.Content>
+						</Alert.Root>
+					)}
 					<Card.Root width="100%" size="lg" variant="elevated">
 						<Card.Header
 							borderBottomWidth={state.currentStep === 6 ? 0 : '1px'}
@@ -464,6 +501,12 @@ export function App() {
 														type="url"
 														placeholder="https://example.com/video or paste a link"
 														value={state.url}
+														onKeyDown={(e) => {
+															if (e.key === 'Enter') {
+																e.preventDefault();
+																handleNext();
+															}
+														}}
 														onChange={(e) =>
 															setState((prev) => ({
 																...prev,
@@ -581,6 +624,12 @@ export function App() {
 												placeholder="Video title..."
 												value={state.title}
 												aria-label="Title"
+												onKeyDown={(e) => {
+													if (e.key === 'Enter') {
+														e.preventDefault();
+														handleNext();
+													}
+												}}
 												onChange={(e) =>
 													setState((prev) => ({
 														...prev,
@@ -597,21 +646,6 @@ export function App() {
 									<Stack gap={4}>
 										{hasSource ? (
 											<>
-												{state.sourceType === 'file' &&
-													state.sourceFile != null &&
-													dur <= 0 && (
-														<Alert.Root status="error">
-															<Alert.Content>
-																<Alert.Description>
-																	Duration couldn't be read from your file in the
-																	browser. Use the desktop app to trim, or continue to
-																	convert the full file. The form below is shown for
-																	reference but won't affect the output in the
-																	browser.
-																</Alert.Description>
-															</Alert.Content>
-														</Alert.Root>
-													)}
 												<HStack gap={6}>
 													<Field.Root disabled={formDisabled}>
 														<Field.Label>Start</Field.Label>
@@ -619,6 +653,12 @@ export function App() {
 															id="trim-start"
 															value={state.startInput}
 															disabled={formDisabled}
+															onKeyDown={(e) => {
+																if (e.key === 'Enter') {
+																	e.preventDefault();
+																	handleNext();
+																}
+															}}
 															onChange={(e) => {
 																if (formDisabled) return;
 																const value = e.target.value;
@@ -653,6 +693,12 @@ export function App() {
 															id="trim-end"
 															value={state.endInput}
 															disabled={formDisabled}
+															onKeyDown={(e) => {
+																if (e.key === 'Enter') {
+																	e.preventDefault();
+																	handleNext();
+																}
+															}}
 															onChange={(e) => {
 																if (formDisabled) return;
 																const value = e.target.value;
@@ -718,25 +764,6 @@ export function App() {
 														</Slider.Control>
 													</Slider.Root>
 												)}
-												{state.sourceType === 'file' &&
-													state.sourceFile != null &&
-													dur <= 0 && (
-														<Button
-															variant="subtle"
-															onClick={() =>
-																setState((prev) => ({
-																	...prev,
-																	currentStep: 4,
-																	maxStepReached: Math.max(prev.maxStepReached, 4),
-																}))
-															}
-															width="100%"
-															justifyContent="space-between"
-														>
-															Continue without trimming
-															<Icon as={FiArrowRight} marginStart={2} fontSize="1em" />
-														</Button>
-													)}
 											</>
 										) : (
 											<Text>
@@ -834,19 +861,24 @@ export function App() {
 							</Card.Footer>
 						)}
 					</Card.Root>
-					{state.currentStep === 6 && state.lastDownloadPath && window.electronAPI?.showItemInFolder && (
-						<Button
-							onClick={() => {
-								const api = window.electronAPI;
-								if (api?.showItemInFolder && state.lastDownloadPath) {
-									api.showItemInFolder(state.lastDownloadPath);
-								}
-							}}
-							width="100%"
-						>
-							Show in Finder
-						</Button>
-					)}
+					{state.currentStep === 6 &&
+						(state.lastDownloadPath && window.electronAPI?.showItemInFolder ? (
+							<Button
+								onClick={() => {
+									const api = window.electronAPI;
+									if (api?.showItemInFolder && state.lastDownloadPath) {
+										api.showItemInFolder(state.lastDownloadPath);
+									}
+								}}
+								width="100%"
+							>
+								Show in Finder
+							</Button>
+						) : typeof window !== 'undefined' && !window.electronAPI ? (
+							<Button onClick={handleReset} width="100%">
+								Show in Finder
+							</Button>
+						) : null)}
 				</Stack>
 			</AbsoluteCenter>
 		</Box>

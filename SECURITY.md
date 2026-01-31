@@ -19,7 +19,7 @@ Snippet is an Electron desktop app that downloads and converts audio from web UR
 
 ### Preload script
 
-- **Minimal API** — Only `getVideoInfo(url)`, `openFileDialog()`, `getLocalFileInfo(filePath)`, and `downloadMP3(params)` are exposed via `contextBridge`.
+- **Minimal API** — Only `getVideoInfo(url)`, `openFileDialog()`, `getLocalFileInfo(filePath)`, `downloadMP3(params)`, and `showItemInFolder(filePath)` are exposed via `contextBridge`.
 - **Type checks** — The preload ensures `url` and `filePath` are strings and `params` is a plain object before forwarding to the main process.
 - **Structured params** — For `downloadMP3`, only `url`, `sourceFilePath`, `title`, `startTime`, `endTime`, and `playbackSpeed` are passed through; other keys are dropped.
 
@@ -39,6 +39,11 @@ Snippet is an Electron desktop app that downloads and converts audio from web UR
 - **Download parameter validation** — `startTime` and `endTime` must be non-negative numbers and capped at 7 days (604 800 seconds) to avoid DoS or overflow; `playbackSpeed` must be between 0.25 and 4.
 - **Title handling** — Only string values are used for the download filename; non-strings are ignored to avoid main-process crashes.
 - **Filename sanitization** — User-provided titles are sanitized (invalid characters removed, length capped) before being used as file names.
+- **Show in Finder** — `show-item-in-folder` accepts only a file path that must resolve under the user’s Downloads folder; other paths are rejected. Sender is checked with `isAllowedSender`.
+
+### Dev-only (Vite dev server)
+
+- **`/api/video-info`** — When running the app in the browser (no Electron), the Vite dev server can serve GET `/api/video-info?url=...` to fetch video metadata using `bin/yt-dlp`. This route is only registered in dev; it is not in the production build. URL validation matches main-process SSRF rules: only `http:`/`https:`, no localhost, no private IP ranges. Use only on a trusted dev machine.
 
 ### Content Security Policy and headers
 
