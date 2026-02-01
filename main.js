@@ -445,7 +445,7 @@ ipcMain.handle('get-video-info', async (event, { url }) => {
     }
     catch (error) {
         console.error('Error fetching video info:', error);
-        throw new Error('Failed to fetch video info');
+        throw new Error("This link isn't supported or couldn't be reached.");
     }
 });
 ipcMain.handle('open-file-dialog', async (event) => {
