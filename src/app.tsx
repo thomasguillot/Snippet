@@ -71,6 +71,8 @@ const initialState: State = {
 	processingPhase: null,
 };
 
+const VIDEO_INFO_ERROR_MESSAGE = "This link isn't supported or couldn't be reached. Check the URL or try another.";
+
 async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; title?: string }> {
 	if (!urlToFetch?.trim()) return {};
 	const api = window.electronAPI;
@@ -80,14 +82,18 @@ async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; 
 	// When running in browser (no Electron), e.g. localhost in dev, use Vite dev API so video info still works
 	try {
 		const res = await fetch(`/api/video-info?url=${encodeURIComponent(urlToFetch.trim())}`);
-		if (!res.ok) return {};
-		const data = (await res.json()) as { duration?: number | null; title?: string | null };
+		const data = (await res.json()) as { duration?: number | null; title?: string | null; error?: string };
+		if (!res.ok) {
+			throw new Error(
+				typeof data?.error === 'string' && data.error.trim() ? data.error : VIDEO_INFO_ERROR_MESSAGE
+			);
+		}
 		return {
 			duration: data.duration ?? undefined,
 			title: data.title ?? undefined,
 		};
 	} catch {
-		return {};
+		throw new Error(VIDEO_INFO_ERROR_MESSAGE);
 	}
 }
 
@@ -118,7 +124,7 @@ export function App() {
 			try {
 				const data = await fetchVideoInfo(state.url);
 				setState((prev) => {
-					const next = { ...prev };
+					const next = { ...prev, status: '' };
 					if (data.duration != null) {
 						next.durationSeconds = data.duration;
 						next.startSeconds = 0;
@@ -133,6 +139,17 @@ export function App() {
 				});
 			} catch (err) {
 				console.error('Error fetching video info:', err);
+				const message = err instanceof Error ? err.message : VIDEO_INFO_ERROR_MESSAGE;
+				setState((prev) => ({
+					...prev,
+					status: message,
+					durationSeconds: null,
+					endSeconds: null,
+					startSeconds: 0,
+					startInput: '00:00:00',
+					endInput: '',
+					...(prev.titleTouched ? {} : { title: '' }),
+				}));
 			}
 			fetchInfoTimeoutRef.current = null;
 		}, 500);
@@ -274,12 +291,15 @@ export function App() {
 				}
 			} catch (err) {
 				console.error('Error fetching source info:', err);
+				const message =
+					state.sourceType === 'url'
+						? err instanceof Error
+							? err.message
+							: VIDEO_INFO_ERROR_MESSAGE
+						: 'Could not read file. Please choose a valid MP4 file.';
 				setState((prev) => ({
 					...prev,
-					status:
-						prev.sourceType === 'url'
-							? 'Could not fetch video info. Please check the URL.'
-							: 'Could not read file. Please choose a valid MP4 file.',
+					status: message,
 					isFetchingVideoInfo: false,
 				}));
 				return;
@@ -852,9 +872,20 @@ export function App() {
 								)}
 
 								{state.status && (
-									<Text fontSize="sm" color={state.status.includes('Error') ? 'red.400' : 'fg.muted'}>
-										{state.status}
-									</Text>
+									<Alert.Root
+										status={
+											state.status.includes('Error') ||
+											state.status.includes("couldn't be reached") ||
+											state.status.includes('Could not read')
+												? 'error'
+												: 'warning'
+										}
+										variant="subtle"
+									>
+										<Alert.Content>
+											<Alert.Description>{state.status}</Alert.Description>
+										</Alert.Content>
+									</Alert.Root>
 								)}
 							</Card.Body>
 						)}

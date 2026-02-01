@@ -5,15 +5,15 @@
 - **Theme selector:** User can choose light / dark / system (default). Preference is persisted via next-themes (localStorage) so the chosen theme applies on next launch.
 - **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather). Theme tabs are hidden on the success step (step 6).
 - **Show in Finder:** After successful conversion, a “Show in Finder” button appears below the card; opens the file’s location in the system file manager. Main process now saves MP3 directly to the user’s Downloads folder and returns the file path (no in-app blob download).
-- **Processing step:** Reset button is hidden during the processing step (step 5).
+- **Processing step:** Reset button is hidden during the processing step (step 5). Main process sends “downloading” and “converting” phases via IPC; step 5 shows “Downloading…” then “Converting…” so it doesn’t feel stuck. Local file shows “Converting…” only.
+- **Status as Alert:** Status messages (errors and validation hints) are now shown in an Alert instead of plain text; error-like messages use status="error”, others use status="warning”.
 - **Dev / localhost:** Video info (duration, title) works when opening the app in the browser; Vite dev API `/api/video-info` uses `bin/yt-dlp`. When no Electron, step 4 “Continue” simulates the full flow (Processing → Conversion complete) so the full flow can be experienced in dev.
 - **Keyboard:** Enter key submits Continue on each step (URL input, title, trim start/end, speed step).
 - **Dev / localhost:** Alert above the card when in browser: “You're on localhost — for testing only. Download and conversion work only in the desktop app (run: npm run dev).”
 - **Dev / localhost:** On step 6 in browser, “Show in Finder” button restarts the app (simulated flow).
 - **Dev / localhost:** Step 4 “Continue” with uploaded file on localhost now simulates the full flow (same as URL).
-- **Security:** Vite dev API `/api/video-info` blocks private IP URLs (SSRF); SECURITY.md updated (show-item-in-folder, dev-only API).
-- **Step 5 · Processing:** Main process sends “downloading” and “converting” phases via IPC; step 5 shows “Downloading…” then “Converting…” so it doesn’t feel stuck. Local file shows “Converting…” only.
 - **Dev / localhost:** Simulated step 5 uses longer delays (3s / 6s) for easier debugging.
+- **Security:** Vite dev API `/api/video-info` blocks private IP URLs (SSRF); SECURITY.md updated (show-item-in-folder, dev-only API).
 
 ## 3.0.2
 
