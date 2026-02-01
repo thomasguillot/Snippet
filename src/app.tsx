@@ -9,11 +9,12 @@ import {
 	HStack,
 	Icon,
 	Input,
-	Progress,
 	Slider,
+	Spinner,
 	Stack,
 	Tabs,
 	Text,
+	VStack,
 } from '@chakra-ui/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Confetti from 'react-confetti';
@@ -45,6 +46,7 @@ interface State {
 	currentStep: number;
 	maxStepReached: number;
 	lastDownloadPath: string | null;
+	processingPhase: 'converting' | 'downloading' | null;
 }
 
 const initialState: State = {
@@ -66,6 +68,7 @@ const initialState: State = {
 	currentStep: 1,
 	maxStepReached: 1,
 	lastDownloadPath: null,
+	processingPhase: null,
 };
 
 async function fetchVideoInfo(urlToFetch: string): Promise<{ duration?: number; title?: string }> {
@@ -139,10 +142,21 @@ export function App() {
 	}, [state.sourceType, state.url]);
 
 	const runDownload = useCallback(async () => {
-		setState((prev) => ({ ...prev, status: '', isLoading: true, currentStep: 5 }));
+		const isLocalFile = state.sourceType === 'file' && state.sourceFilePath.trim().length > 0;
+		setState((prev) => ({
+			...prev,
+			status: '',
+			isLoading: true,
+			currentStep: 5,
+			processingPhase: isLocalFile ? 'converting' : 'downloading',
+		}));
 		const api = window.electronAPI;
 		if (!api?.downloadMP3) {
 			// Dev/browser: simulate the full flow so we can experience step 5 → 6 (no actual file, URL or upload)
+			// Longer delays on localhost so step 5 phases are easier to debug
+			setTimeout(() => {
+				setState((prev) => (prev.currentStep === 5 ? { ...prev, processingPhase: 'converting' } : prev));
+			}, 3000);
 			setTimeout(() => {
 				setState((prev) => ({
 					...prev,
@@ -150,8 +164,9 @@ export function App() {
 					maxStepReached: 6,
 					isLoading: false,
 					lastDownloadPath: null,
+					processingPhase: null,
 				}));
-			}, 2000);
+			}, 6000);
 			return;
 		}
 		try {
@@ -168,10 +183,17 @@ export function App() {
 				maxStepReached: 6,
 				isLoading: false,
 				lastDownloadPath: result.filePath,
+				processingPhase: null,
 			}));
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			setState((prev) => ({ ...prev, status: `Error: ${message}`, currentStep: 4, isLoading: false }));
+			setState((prev) => ({
+				...prev,
+				status: `Error: ${message}`,
+				currentStep: 4,
+				isLoading: false,
+				processingPhase: null,
+			}));
 		}
 	}, [
 		state.sourceType,
@@ -290,6 +312,7 @@ export function App() {
 		setState({
 			...initialState,
 			lastDownloadPath: null,
+			processingPhase: null,
 			sourceType: state.currentStep === 1 ? state.sourceType : 'url',
 		});
 	}, [state.currentStep]);
@@ -308,13 +331,21 @@ export function App() {
 		return () => document.removeEventListener('keydown', onKeyDown);
 	}, [state.currentStep, handleNext]);
 
+	// Subscribe to main-process phase updates (Downloading… / Converting…)
+	useEffect(() => {
+		const api = window.electronAPI;
+		if (!api?.onProcessingPhase) return undefined;
+		return api.onProcessingPhase((phase) => {
+			setState((prev) => (prev.currentStep === 5 ? { ...prev, processingPhase: phase } : prev));
+		});
+	}, []);
+
 	const hasSource =
 		state.currentStep !== 1 ||
 		(state.sourceType === 'url' && state.url.trim().length > 0) ||
 		(state.sourceType === 'file' && (state.sourceFilePath.trim().length > 0 || state.sourceFile != null));
 	const hasSourceToReset =
 		state.url.trim().length > 0 || state.sourceFilePath.trim().length > 0 || state.sourceFile != null;
-	const nextLabel = state.currentStep === 1 && state.isFetchingVideoInfo ? 'Loading…' : 'Continue';
 
 	const dur = state.durationSeconds ?? 0;
 	const endVal = state.endSeconds ?? dur;
@@ -809,16 +840,15 @@ export function App() {
 								)}
 
 								{state.currentStep === 5 && (
-									<Stack gap={4}>
-										<Progress.Root value={null}>
-											<Progress.Track>
-												<Progress.Range />
-											</Progress.Track>
-										</Progress.Root>
-										<Text fontSize="sm" color="fg.subtle">
-											Please keep the app open while we work on it.
+									<VStack gap={4} justify="center">
+										<Spinner size="xl" />
+										<Text textAlign="center">
+											{state.processingPhase === 'converting' ? 'Converting…' : 'Downloading…'}
 										</Text>
-									</Stack>
+										<Alert.Root status="warning" variant="subtle">
+											<Alert.Content>Please keep the app open while we work on it.</Alert.Content>
+										</Alert.Root>
+									</VStack>
 								)}
 
 								{state.status && (
@@ -852,10 +882,9 @@ export function App() {
 										}
 										onClick={handleNext}
 										loading={state.currentStep === 1 && state.isFetchingVideoInfo}
-										loadingText="Loading…"
 										flexShrink={0}
 									>
-										{nextLabel}
+										Continue
 									</Button>
 								</HStack>
 							</Card.Footer>

@@ -490,10 +490,21 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
     const isLocalFile = typeof sourceFilePath === 'string' && sourceFilePath.trim().length > 0;
     const validatedParams = validateDownloadParams({ startTime, endTime, playbackSpeed });
     const { startTime: startTimeVal, endTime: endTimeVal, playbackSpeed: playbackSpeedVal } = validatedParams;
+    const sendPhase = (phase) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('processing-phase', phase);
+        }
+    };
     const timestamp = Date.now();
     const outputPath = path.join(tempDir, `output_${timestamp}.mp3`);
     let downloadedFilePath;
     try {
+        if (isLocalFile) {
+            sendPhase('converting');
+        }
+        else {
+            sendPhase('downloading');
+        }
         let videoTitle = 'output';
         if (isLocalFile) {
             downloadedFilePath = validateLocalFilePath(sourceFilePath);
@@ -544,6 +555,7 @@ ipcMain.handle('download-mp3', async (event, { url, sourceFilePath, title, start
             }
             downloadedFilePath = path.join(tempDir, downloadedFile);
         }
+        sendPhase('converting');
         return new Promise((resolve, reject) => {
             let command = ffmpeg(downloadedFilePath).audioCodec('libmp3lame').audioBitrate(192).format('mp3');
             if (startTimeVal !== undefined) {

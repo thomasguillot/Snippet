@@ -11,6 +11,7 @@ export interface ElectronAPI {
 		playbackSpeed?: number;
 	}) => Promise<{ filename: string; filePath: string }>;
 	showItemInFolder: (filePath: string) => Promise<void>;
+	onProcessingPhase: (callback: (phase: 'downloading' | 'converting') => void) => () => void;
 }
 
 declare global {

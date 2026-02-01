@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.3
+## 3.1.0
 
 - **Theme selector:** User can choose light / dark / system (default). Preference is persisted via next-themes (localStorage) so the chosen theme applies on next launch.
 - **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather). Theme tabs are hidden on the success step (step 6).
@@ -12,6 +12,8 @@
 - **Dev / localhost:** On step 6 in browser, “Show in Finder” button restarts the app (simulated flow).
 - **Dev / localhost:** Step 4 “Continue” with uploaded file on localhost now simulates the full flow (same as URL).
 - **Security:** Vite dev API `/api/video-info` blocks private IP URLs (SSRF); SECURITY.md updated (show-item-in-folder, dev-only API).
+- **Step 5 · Processing:** Main process sends “downloading” and “converting” phases via IPC; step 5 shows “Downloading…” then “Converting…” so it doesn’t feel stuck. Local file shows “Converting…” only.
+- **Dev / localhost:** Simulated step 5 uses longer delays (3s / 6s) for easier debugging.
 
 ## 3.0.2
 

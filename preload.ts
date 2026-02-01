@@ -34,4 +34,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		}
 		return ipcRenderer.invoke('show-item-in-folder', { filePath });
 	},
+	onProcessingPhase: (callback: (phase: 'downloading' | 'converting') => void) => {
+		const listener = (_event: unknown, phase: 'downloading' | 'converting') => callback(phase);
+		ipcRenderer.on('processing-phase', listener);
+		return () => {
+			ipcRenderer.removeListener('processing-phase', listener);
+		};
+	},
 });

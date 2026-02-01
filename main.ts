@@ -564,12 +564,23 @@ ipcMain.handle(
 		const validatedParams = validateDownloadParams({ startTime, endTime, playbackSpeed });
 		const { startTime: startTimeVal, endTime: endTimeVal, playbackSpeed: playbackSpeedVal } = validatedParams;
 
+		const sendPhase = (phase: 'downloading' | 'converting') => {
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.webContents.send('processing-phase', phase);
+			}
+		};
+
 		const timestamp = Date.now();
 		const outputPath = path.join(tempDir, `output_${timestamp}.mp3`);
 
 		let downloadedFilePath: string;
 
 		try {
+			if (isLocalFile) {
+				sendPhase('converting');
+			} else {
+				sendPhase('downloading');
+			}
 			let videoTitle = 'output';
 
 			if (isLocalFile) {
@@ -622,6 +633,7 @@ ipcMain.handle(
 				downloadedFilePath = path.join(tempDir, downloadedFile);
 			}
 
+			sendPhase('converting');
 			return new Promise((resolve, reject) => {
 				let command = ffmpeg(downloadedFilePath).audioCodec('libmp3lame').audioBitrate(192).format('mp3');
 
