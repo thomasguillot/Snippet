@@ -102,7 +102,9 @@ type ThemeValue = 'dark' | 'light' | 'system';
 export function App() {
 	const [state, setState] = useState<State>(initialState);
 	const fetchInfoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const isInitialStepMount = useRef(true);
 	const [windowSize, setWindowSize] = useState({ height: 0, width: 0 });
+	const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 	const { setTheme, theme } = useTheme();
 	const themeValue = (theme === 'light' || theme === 'dark' || theme === 'system' ? theme : 'system') as ThemeValue;
 
@@ -111,6 +113,14 @@ export function App() {
 		updateSize();
 		window.addEventListener('resize', updateSize);
 		return () => window.removeEventListener('resize', updateSize);
+	}, []);
+
+	useEffect(() => {
+		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+		setPrefersReducedMotion(mq.matches);
+		const handler = () => setPrefersReducedMotion(mq.matches);
+		mq.addEventListener('change', handler);
+		return () => mq.removeEventListener('change', handler);
 	}, []);
 
 	// Debounced URL fetch
@@ -360,6 +370,21 @@ export function App() {
 		});
 	}, []);
 
+	// Move focus to step heading when step changes (Continue/Back) so keyboard/screen reader users land in the right place
+	useEffect(() => {
+		if (isInitialStepMount.current) {
+			isInitialStepMount.current = false;
+			return;
+		}
+		const raf = requestAnimationFrame(() => {
+			const el = document.getElementById('step-heading');
+			if (el) {
+				(el as HTMLElement).focus();
+			}
+		});
+		return () => cancelAnimationFrame(raf);
+	}, [state.currentStep]);
+
 	const hasSource =
 		state.currentStep !== 1 ||
 		(state.sourceType === 'url' && state.url.trim().length > 0) ||
@@ -407,7 +432,7 @@ export function App() {
 
 	return (
 		<Box minH="100vh" position="relative" w="100%" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-			{state.currentStep === 6 && windowSize.width > 0 && windowSize.height > 0 && (
+			{state.currentStep === 6 && !prefersReducedMotion && windowSize.width > 0 && windowSize.height > 0 && (
 				<Box height="100vh" left={0} pointerEvents="none" position="fixed" top={0} width="100vw" zIndex={0}>
 					<Confetti
 						friction={0.98}
@@ -420,7 +445,15 @@ export function App() {
 					/>
 				</Box>
 			)}
-			<AbsoluteCenter axis="both" width="100%" maxW="512px" p={6} zIndex={1}>
+			<AbsoluteCenter
+				axis="both"
+				width="100%"
+				maxW="512px"
+				p={6}
+				zIndex={1}
+				role="main"
+				aria-label="Convert video or audio to MP3"
+			>
 				<Stack
 					direction="column"
 					gap={4}
@@ -442,14 +475,32 @@ export function App() {
 								onValueChange={(e) => setTheme((e.value as ThemeValue) ?? 'system')}
 							>
 								<Tabs.List borderRadius="full">
-									<Tabs.Trigger value="system" title="System" padding={0} borderRadius="full">
-										<Icon as={FiMonitor} height="16px" width="16px" />
+									<Tabs.Trigger
+										value="system"
+										aria-label="System theme"
+										title="System"
+										padding={0}
+										borderRadius="full"
+									>
+										<Icon as={FiMonitor} aria-hidden height="16px" width="16px" />
 									</Tabs.Trigger>
-									<Tabs.Trigger value="light" title="Light" padding={0} borderRadius="full">
-										<Icon as={FiSun} height="16px" width="16px" />
+									<Tabs.Trigger
+										value="light"
+										aria-label="Light theme"
+										title="Light"
+										padding={0}
+										borderRadius="full"
+									>
+										<Icon as={FiSun} aria-hidden height="16px" width="16px" />
 									</Tabs.Trigger>
-									<Tabs.Trigger value="dark" title="Dark" padding={0} borderRadius="full">
-										<Icon as={FiMoon} height="16px" width="16px" />
+									<Tabs.Trigger
+										value="dark"
+										aria-label="Dark theme"
+										title="Dark"
+										padding={0}
+										borderRadius="full"
+									>
+										<Icon as={FiMoon} aria-hidden height="16px" width="16px" />
 									</Tabs.Trigger>
 								</Tabs.List>
 							</Tabs.Root>
@@ -479,7 +530,9 @@ export function App() {
 											fontFamily="heading"
 											fontSize="md"
 											fontWeight="semibold"
+											id="step-heading"
 											lineHeight="moderate"
+											tabIndex={0}
 										>
 											{stepHeader.title}
 										</Card.Title>
@@ -495,6 +548,7 @@ export function App() {
 								</Stack>
 								{(hasSourceToReset || state.currentStep === 6) && state.currentStep !== 5 && (
 									<Button
+										aria-label="Reset and start over"
 										size={state.currentStep === 6 ? 'md' : 'xs'}
 										variant={state.currentStep === 6 ? 'subtle' : 'ghost'}
 										colorPalette={state.currentStep === 6 ? 'gray' : 'red'}
@@ -504,7 +558,7 @@ export function App() {
 										{state.currentStep === 6 ? (
 											<>
 												Start over
-												<Icon as={FiArrowRight} height="16px" width="16px" />
+												<Icon as={FiArrowRight} aria-hidden height="16px" width="16px" />
 											</>
 										) : (
 											'Reset'
@@ -550,6 +604,7 @@ export function App() {
 													<Input
 														id="url"
 														type="url"
+														aria-label="Video or audio URL"
 														placeholder="https://example.com/video or paste a link"
 														value={state.url}
 														onKeyDown={(e) => {
@@ -587,6 +642,7 @@ export function App() {
 												<Box mt={4}>
 													{typeof window.electronAPI?.openFileDialog === 'function' ? (
 														<Button
+															aria-label="Choose MP4 file"
 															variant="outline"
 															width="100%"
 															onClick={async () => {
@@ -626,6 +682,8 @@ export function App() {
 															<input
 																type="file"
 																accept=".mp3,.mp4,audio/mpeg,video/mp4"
+																aria-label="Choose MP4 file"
+																tabIndex={-1}
 																style={{
 																	position: 'absolute',
 																	opacity: 0,
@@ -647,6 +705,7 @@ export function App() {
 																}}
 															/>
 															<Button
+																aria-label="Choose MP4 file"
 																variant="outline"
 																width="100%"
 																onClick={() =>
@@ -702,6 +761,7 @@ export function App() {
 														<Field.Label>Start</Field.Label>
 														<Input
 															id="trim-start"
+															aria-label="Start time"
 															value={state.startInput}
 															disabled={formDisabled}
 															onKeyDown={(e) => {
@@ -742,6 +802,7 @@ export function App() {
 														<Field.Label>End</Field.Label>
 														<Input
 															id="trim-end"
+															aria-label="End time"
 															value={state.endInput}
 															disabled={formDisabled}
 															onKeyDown={(e) => {
@@ -782,6 +843,7 @@ export function App() {
 												{effectiveDur > 0 && (
 													<Slider.Root
 														key={effectiveDur}
+														aria-label="Trim range, start and end time"
 														min={0}
 														max={effectiveDur}
 														step={0.1}
@@ -835,6 +897,7 @@ export function App() {
 												</Text>
 											</HStack>
 											<Slider.Root
+												aria-label="Playback speed"
 												min={0.25}
 												max={2}
 												step={0.25}
@@ -861,8 +924,8 @@ export function App() {
 
 								{state.currentStep === 5 && (
 									<VStack gap={4} justify="center">
-										<Spinner size="xl" />
-										<Text textAlign="center">
+										<Spinner size="xl" aria-label="Processing" />
+										<Text role="status" aria-live="polite" textAlign="center">
 											{state.processingPhase === 'converting' ? 'Converting…' : 'Downloading…'}
 										</Text>
 										<Alert.Root status="warning" variant="subtle">
@@ -873,6 +936,20 @@ export function App() {
 
 								{state.status && (
 									<Alert.Root
+										aria-live={
+											state.status.includes('Error') ||
+											state.status.includes("couldn't be reached") ||
+											state.status.includes('Could not read')
+												? 'assertive'
+												: 'polite'
+										}
+										role={
+											state.status.includes('Error') ||
+											state.status.includes("couldn't be reached") ||
+											state.status.includes('Could not read')
+												? 'alert'
+												: 'status'
+										}
 										status={
 											state.status.includes('Error') ||
 											state.status.includes("couldn't be reached") ||
@@ -895,6 +972,7 @@ export function App() {
 								<HStack justify="flex-end" flexWrap="wrap" gap={2} width="100%">
 									{state.currentStep > 1 && (
 										<Button
+											aria-label="Go back"
 											variant="outline"
 											disabled={state.isLoading}
 											onClick={() =>
@@ -905,15 +983,18 @@ export function App() {
 										</Button>
 									)}
 									<Button
+										aria-label={
+											state.currentStep === 4 ? 'Continue and download' : 'Continue to next step'
+										}
 										disabled={
 											state.isLoading ||
 											(state.currentStep === 1 && state.isFetchingVideoInfo) ||
 											state.currentStep >= TOTAL_STEPS ||
 											!hasSource
 										}
-										onClick={handleNext}
-										loading={state.currentStep === 1 && state.isFetchingVideoInfo}
 										flexShrink={0}
+										loading={state.currentStep === 1 && state.isFetchingVideoInfo}
+										onClick={handleNext}
 									>
 										Continue
 									</Button>

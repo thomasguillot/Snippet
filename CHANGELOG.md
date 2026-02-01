@@ -2,6 +2,7 @@
 
 ## 3.1.0
 
+- **Accessibility:** Improved tab order and focus (step heading is focusable; focus moves to the step heading when continuing or going back). Status and error messages use live regions (`role="status"` / `role="alert"`, `aria-live`) so screen readers announce them; processing phase (“Downloading…” / “Converting…”) is announced. Form controls, actions, and the theme switcher have `aria-label`s; decorative icons use `aria-hidden`. Main content has a `main` landmark. Confetti on the success step is disabled when the user prefers reduced motion.
 - **Theme selector:** User can choose light / dark / system (default). Preference is persisted via next-themes (localStorage) so the chosen theme applies on next launch.
 - **Theme selector UI:** Tabs above the main card, right-aligned, with icons (sun, moon, monitor for system). Same Tabs style as the source selector (enclosed, fitted). Icons from react-icons (Feather). Theme tabs are hidden on the success step (step 6).
 - **Show in Finder:** After successful conversion, a “Show in Finder” button appears below the card; opens the file’s location in the system file manager. Main process now saves MP3 directly to the user’s Downloads folder and returns the file path (no in-app blob download).
