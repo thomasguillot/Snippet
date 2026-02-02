@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.0
+## 3.0.2
 
 - **Accessibility:** Improved tab order and focus (step heading is focusable; focus moves to the step heading when continuing or going back). Status and error messages use live regions (`role="status"` / `role="alert"`, `aria-live`) so screen readers announce them; processing phase (“Downloading…” / “Converting…”) is announced. Form controls, actions, and the theme switcher have `aria-label`s; decorative icons use `aria-hidden`. Main content has a `main` landmark. Confetti on the success step is disabled when the user prefers reduced motion.
 - **Tabs · keyboard:** Theme and source tabs are keyboard-navigable: all tab triggers are focusable (Tab moves between them, Enter/Space selects); Arrow Left/Right also move between tabs when a trigger is focused.
@@ -16,12 +16,6 @@
 - **Dev / localhost:** Step 4 “Continue” with uploaded file on localhost now simulates the full flow (same as URL).
 - **Dev / localhost:** Simulated step 5 uses longer delays (3s / 6s) for easier debugging.
 - **Security:** Vite dev API `/api/video-info` blocks private IP URLs (SSRF); SECURITY.md updated (show-item-in-folder, dev-only API).
-
-## 3.0.2
-
-- **Card:** Body has consistent minimum height across steps (no resize when switching steps); step 4 footer button label is always “Continue” (no Convert/Download).
-- **Electron:** Window draggable via app region: whole app is drag region, card has no-drag so it stays interactive.
-- **Provider:** Mount loader progress bar extracted to reusable `LoaderProgress` component.
 
 ## 3.0.1
 
