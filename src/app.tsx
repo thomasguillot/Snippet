@@ -213,10 +213,20 @@ export function App() {
 				processingPhase: null,
 			}));
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
+			const rawMessage = err instanceof Error ? err.message : String(err);
+			let friendlyMessage = rawMessage;
+
+			if (rawMessage.includes('Save canceled')) {
+				// User intentionally canceled the Save dialog; surface a clear, non-technical message
+				friendlyMessage = 'Save canceled. Your MP3 was not saved.';
+			} else {
+				// Strip Electron IPC prefix if present to avoid leaking internal details
+				friendlyMessage = rawMessage.replace(/^Error invoking remote method 'download-mp3':\s*/i, '');
+			}
+
 			setState((prev) => ({
 				...prev,
-				status: `Error: ${message}`,
+				status: friendlyMessage,
 				currentStep: 4,
 				isLoading: false,
 				processingPhase: null,

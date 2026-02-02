@@ -657,46 +657,73 @@ ipcMain.handle(
 
 				command
 					.on('end', () => {
-						const outputFiles = fs.readdirSync(tempDir);
-						const finalOutput = outputFiles.find((f: string) => f.startsWith(`output_${timestamp}`));
+						(async () => {
+							try {
+								const outputFiles = fs.readdirSync(tempDir);
+								const finalOutput = outputFiles.find((f: string) =>
+									f.startsWith(`output_${timestamp}`)
+								);
 
-						const cleanupTempInput = () => {
-							if (!isLocalFile && fs.existsSync(downloadedFilePath)) {
-								fs.unlinkSync(downloadedFilePath);
+								const cleanupTempInput = () => {
+									if (!isLocalFile && fs.existsSync(downloadedFilePath)) {
+										fs.unlinkSync(downloadedFilePath);
+									}
+								};
+
+								const promptAndSave = async (finalFile: string, filename: string) => {
+									if (!mainWindow || mainWindow.isDestroyed()) {
+										throw new Error('Window not available');
+									}
+
+									const downloadsDir = app.getPath('downloads');
+									const defaultPath = path.join(downloadsDir, filename);
+
+									const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, {
+										defaultPath,
+										filters: [
+											{ name: 'MP3 Audio', extensions: ['mp3'] },
+											{ name: 'All Files', extensions: ['*'] },
+										],
+									});
+
+									if (canceled || !savePath) {
+										cleanupTempInput();
+										if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
+										throw new Error('Save canceled');
+									}
+
+									fs.copyFileSync(finalFile, savePath);
+									cleanupTempInput();
+									if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
+									resolve({ filename: path.basename(savePath), filePath: savePath });
+								};
+
+								if (!finalOutput) {
+									const mp3Files = outputFiles
+										.filter((f: string) => f.endsWith('.mp3'))
+										.map((f: string) => ({
+											name: f,
+											time: fs.statSync(path.join(tempDir, f)).mtime,
+										}))
+										.sort((a: { time: number }, b: { time: number }) => b.time - a.time);
+
+									if (mp3Files.length > 0) {
+										const finalFile = path.join(tempDir, mp3Files[0].name);
+										const filename = `${videoTitle}.mp3`;
+										await promptAndSave(finalFile, filename);
+									} else {
+										cleanupTempInput();
+										throw new Error('Output file not found');
+									}
+								} else {
+									const finalFile = path.join(tempDir, finalOutput);
+									const filename = `${videoTitle}.mp3`;
+									await promptAndSave(finalFile, filename);
+								}
+							} catch (err) {
+								reject(err as Error);
 							}
-						};
-
-						const toResolve = (finalFile: string, filename: string) => {
-							const downloadsDir = app.getPath('downloads');
-							const destPath = path.join(downloadsDir, filename);
-							fs.copyFileSync(finalFile, destPath);
-							cleanupTempInput();
-							if (fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
-							resolve({ filename, filePath: destPath });
-						};
-
-						if (!finalOutput) {
-							const mp3Files = outputFiles
-								.filter((f: string) => f.endsWith('.mp3'))
-								.map((f: string) => ({
-									name: f,
-									time: fs.statSync(path.join(tempDir, f)).mtime,
-								}))
-								.sort((a: { time: number }, b: { time: number }) => b.time - a.time);
-
-							if (mp3Files.length > 0) {
-								const finalFile = path.join(tempDir, mp3Files[0].name);
-								const filename = `${videoTitle}.mp3`;
-								toResolve(finalFile, filename);
-							} else {
-								cleanupTempInput();
-								reject(new Error('Output file not found'));
-							}
-						} else {
-							const finalFile = path.join(tempDir, finalOutput);
-							const filename = `${videoTitle}.mp3`;
-							toResolve(finalFile, filename);
-						}
+						})();
 					})
 					.on('error', (err: Error) => {
 						if (!isLocalFile && fs.existsSync(downloadedFilePath)) {
