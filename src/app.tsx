@@ -470,6 +470,7 @@ export function App() {
 					mb={-4}
 				>
 					<Tabs.Root
+						id="theme-tabs"
 						fitted
 						size="sm"
 						value={themeValue}
@@ -483,6 +484,7 @@ export function App() {
 								title="System"
 								padding={0}
 								borderRadius="full"
+								tabIndex={0}
 							>
 								<Icon as={FiMonitor} aria-hidden height="16px" width="16px" />
 							</Tabs.Trigger>
@@ -492,6 +494,7 @@ export function App() {
 								title="Light"
 								padding={0}
 								borderRadius="full"
+								tabIndex={0}
 							>
 								<Icon as={FiSun} aria-hidden height="16px" width="16px" />
 							</Tabs.Trigger>
@@ -501,6 +504,7 @@ export function App() {
 								title="Dark"
 								padding={0}
 								borderRadius="full"
+								tabIndex={0}
 							>
 								<Icon as={FiMoon} aria-hidden height="16px" width="16px" />
 							</Tabs.Trigger>
@@ -588,6 +592,7 @@ export function App() {
 								{state.currentStep === 1 && (
 									<Stack gap={4}>
 										<Tabs.Root
+											id="source-tabs"
 											fitted
 											variant="enclosed"
 											value={state.sourceType}
@@ -607,10 +612,15 @@ export function App() {
 												<Tabs.Trigger
 													value="url"
 													disabled={!!(state.sourceFilePath || state.sourceFile)}
+													tabIndex={state.sourceFilePath || state.sourceFile ? -1 : 0}
 												>
 													Enter URL
 												</Tabs.Trigger>
-												<Tabs.Trigger value="file" disabled={!!state.url.trim()}>
+												<Tabs.Trigger
+													value="file"
+													disabled={!!state.url.trim()}
+													tabIndex={state.url.trim() ? -1 : 0}
+												>
 													Upload file
 												</Tabs.Trigger>
 											</Tabs.List>
