@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.3
+
+- **Window (Electron):** Minimum window size set to 384×512 px (64px base); the app window cannot be resized below these dimensions.
+- **Repo:** Stopped tracking compiled `main.js` and `preload.js`; they are build outputs from the TypeScript main process and remain in `.gitignore`.
+
 ## 3.0.2
 
 - **Accessibility:** Improved tab order and focus (step heading is focusable; focus moves to the step heading when continuing or going back). Status and error messages use live regions (`role="status"` / `role="alert"`, `aria-live`) so screen readers announce them; processing phase (“Downloading…” / “Converting…”) is announced. Form controls, actions, and the theme switcher have `aria-label`s; decorative icons use `aria-hidden`. Main content has a `main` landmark. Confetti on the success step is disabled when the user prefers reduced motion.
