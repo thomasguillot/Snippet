@@ -250,8 +250,10 @@ function createWindow() {
     const distIndexPath = path.join(__dirname, 'dist', 'index.html');
     const isDev = process.env.NODE_ENV === 'development' || !fs.existsSync(distIndexPath);
     const win = new BrowserWindow({
-        width: 600,
+        width: 576,
         height: 800,
+        minWidth: 384,
+        minHeight: 512,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
