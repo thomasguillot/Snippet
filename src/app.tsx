@@ -1,5 +1,4 @@
 import {
-	AbsoluteCenter,
 	Alert,
 	Badge,
 	Box,
@@ -441,7 +440,13 @@ export function App() {
 								};
 
 	return (
-		<Box minH="100vh" position="relative" w="100%" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+		<VStack
+			minH="100vh"
+			position="relative"
+			w="100%"
+			gap={0}
+			style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+		>
 			{state.currentStep === 6 && !prefersReducedMotion && windowSize.width > 0 && windowSize.height > 0 && (
 				<Box height="100vh" left={0} pointerEvents="none" position="fixed" top={0} width="100vw" zIndex={0}>
 					<Confetti
@@ -455,67 +460,67 @@ export function App() {
 					/>
 				</Box>
 			)}
-			<AbsoluteCenter
-				axis="both"
+			{state.currentStep !== 6 && (
+				<Box
+					display="flex"
+					justifyContent="flex-end"
+					width="100%"
+					style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+					padding={4}
+					mb={-4}
+				>
+					<Tabs.Root
+						fitted
+						size="sm"
+						value={themeValue}
+						variant="enclosed"
+						onValueChange={(e) => setTheme((e.value as ThemeValue) ?? 'system')}
+					>
+						<Tabs.List borderRadius="full">
+							<Tabs.Trigger
+								value="system"
+								aria-label="System theme"
+								title="System"
+								padding={0}
+								borderRadius="full"
+							>
+								<Icon as={FiMonitor} aria-hidden height="16px" width="16px" />
+							</Tabs.Trigger>
+							<Tabs.Trigger
+								value="light"
+								aria-label="Light theme"
+								title="Light"
+								padding={0}
+								borderRadius="full"
+							>
+								<Icon as={FiSun} aria-hidden height="16px" width="16px" />
+							</Tabs.Trigger>
+							<Tabs.Trigger
+								value="dark"
+								aria-label="Dark theme"
+								title="Dark"
+								padding={0}
+								borderRadius="full"
+							>
+								<Icon as={FiMoon} aria-hidden height="16px" width="16px" />
+							</Tabs.Trigger>
+						</Tabs.List>
+					</Tabs.Root>
+				</Box>
+			)}
+			<Stack
+				alignItems="center"
+				justifyContent="center"
 				width="100%"
-				maxW="512px"
-				p={6}
+				height="100%"
+				padding={4}
 				zIndex={1}
 				role="main"
 				aria-label="Convert video or audio to MP3"
+				position="relative"
+				flex={1}
 			>
-				<Stack
-					direction="column"
-					gap={4}
-					width="100%"
-					style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-				>
-					{state.currentStep !== 6 && (
-						<Box
-							display="flex"
-							justifyContent="flex-end"
-							width="100%"
-							style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-						>
-							<Tabs.Root
-								fitted
-								size="sm"
-								value={themeValue}
-								variant="enclosed"
-								onValueChange={(e) => setTheme((e.value as ThemeValue) ?? 'system')}
-							>
-								<Tabs.List borderRadius="full">
-									<Tabs.Trigger
-										value="system"
-										aria-label="System theme"
-										title="System"
-										padding={0}
-										borderRadius="full"
-									>
-										<Icon as={FiMonitor} aria-hidden height="16px" width="16px" />
-									</Tabs.Trigger>
-									<Tabs.Trigger
-										value="light"
-										aria-label="Light theme"
-										title="Light"
-										padding={0}
-										borderRadius="full"
-									>
-										<Icon as={FiSun} aria-hidden height="16px" width="16px" />
-									</Tabs.Trigger>
-									<Tabs.Trigger
-										value="dark"
-										aria-label="Dark theme"
-										title="Dark"
-										padding={0}
-										borderRadius="full"
-									>
-										<Icon as={FiMoon} aria-hidden height="16px" width="16px" />
-									</Tabs.Trigger>
-								</Tabs.List>
-							</Tabs.Root>
-						</Box>
-					)}
+				<VStack gap={4} width="100%" maxW="512px" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
 					{typeof window !== 'undefined' && !window.electronAPI && (
 						<Alert.Root status="warning" variant="subtle">
 							<Alert.Content>
@@ -578,7 +583,7 @@ export function App() {
 							</HStack>
 						</Card.Header>
 						{state.currentStep !== 6 && (
-							<Card.Body gap={5} minHeight="20rem">
+							<Card.Body gap={5}>
 								{/* Step content */}
 								{state.currentStep === 1 && (
 									<Stack gap={4}>
@@ -1030,8 +1035,8 @@ export function App() {
 								Show in Finder
 							</Button>
 						) : null)}
-				</Stack>
-			</AbsoluteCenter>
-		</Box>
+				</VStack>
+			</Stack>
+		</VStack>
 	);
 }
